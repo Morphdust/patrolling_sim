@@ -43,6 +43,7 @@
 #include <actionlib/client/simple_action_client.h>
 #include <tf/transform_broadcaster.h>
 #include <tf/transform_listener.h>
+#include <time.h>
 #include <nav_msgs/Odometry.h>
 #include <std_srvs/Empty.h>
 
@@ -54,6 +55,9 @@ using namespace std;
 #define SIMULATE_FOREVER true //WARNING: Set this to false, if you want a finishing condition.
 
 const std::string PS_path = ros::package::getPath("patrolling_sim"); 	//D.Portugal => get pkg path
+
+double last_pos_log = 60.0;
+FILE *positionstimecsvfile;
 
 
 void PatrolAgent::init(int argc, char** argv) {
@@ -111,6 +115,7 @@ void PatrolAgent::init(int argc, char** argv) {
 #endif
       
     interference = false;
+    crashed = false;
     ResendGoal = false;
     goal_complete = true;
     last_interference = 0;
@@ -120,6 +125,15 @@ void PatrolAgent::init(int argc, char** argv) {
     communication_delay = 0.0;
     lost_message_rate = 0.0;
     goal_reached_wait = 0.0;
+
+    if (ID_ROBOT == 0) {
+        time_t t;
+        time(&t);
+        string positionstimecsvfilename = ctime(&t);
+        positionstimecsvfilename.append("_position_log.csv");
+        positionstimecsvfile = fopen (positionstimecsvfilename.c_str(),"a");
+    }
+
     /* Define Starting Vertex/Position (Launch File Parameters) */
 
     ros::init(argc, argv, "patrol_agent");  // will be replaced by __name:=XXXXXX
@@ -189,7 +203,8 @@ void PatrolAgent::init(int argc, char** argv) {
     //Cmd_vel to backup:
     cmd_vel_pub  = nh.advertise<geometry_msgs::Twist>(string2, 1);
     
-    //Subscrever para obter dados de "odom" do robot corrente
+    // Subscrever para obter dados de "odom" do robot corrente
+    // Subscribe to get "odom" data from current robot
     odom_sub = nh.subscribe<nav_msgs::Odometry>(string1, 1, boost::bind(&PatrolAgent::odomCB, this, _1)); //size of the buffer = 1 (?)
     
     ros::spinOnce(); 
@@ -217,7 +232,7 @@ void PatrolAgent::ready() {
     }
     
     ac = new MoveBaseClient(move_string, true); 
-    
+    ROS_INFO(ac);
     //wait for the action server to come up
     while(!ac->waitForServer(ros::Duration(5.0))){
         ROS_INFO("Waiting for the move_base action server to come up");
@@ -303,10 +318,10 @@ void PatrolAgent::run() {
             onGoalComplete();  // can be redefined
             resend_goal_count=0;
         }
-        else { // goal not complete (active)
+        else if (not crashed) { // goal not complete (active)
             if (interference) {
                 do_interference_behavior();
-            }       
+            }    
             
             if (ResendGoal) {
                 //Send the goal to the robot (Global Map)
@@ -578,7 +593,8 @@ void PatrolAgent::goalFeedbackCallback(const move_base_msgs::MoveBaseFeedbackCon
     
     int value = ID_ROBOT;
     if (value==-1){ value = 0;}
-    interference = check_interference(value);    
+    interference = check_interference(value);
+    crashed = check_collision(value);    
 }
 
 void PatrolAgent::send_goal_reached() {
@@ -622,6 +638,29 @@ bool PatrolAgent::check_interference (int robot_id){ //verificar se os robots es
     
 }
 
+bool PatrolAgent::check_collision (int robot_id){ //verificar se os robots estao proximos
+    
+    int i;
+    double dist_quad;
+    
+    /* Poderei usar TEAMSIZE para afinar */
+    for (i=0; i<TEAMSIZE; i++){ //percorrer vizinhos (assim asseguro q cada interferencia é so encontrada 1 vez)
+
+        if (i != robot_id) {
+        
+            dist_quad = (xPos[i] - xPos[robot_id])*(xPos[i] - xPos[robot_id]) + (yPos[i] - yPos[robot_id])*(yPos[i] - yPos[robot_id]);
+            
+            // if (dist_quad <= 0.25*0.25){    //robots are ... meter or less apart
+            //     cancelGoal();
+            //     ROS_INFO("Robot stopped");
+            //     return true;
+            // }    
+        }   
+    }
+    return false; 
+}
+
+
 void PatrolAgent::backup(){
     
     ros::Rate loop_rate(100); // 100Hz
@@ -633,20 +672,20 @@ void PatrolAgent::backup(){
           ROS_INFO("The wall is too close! I need to do some backing up...");
           // Move the robot back...
           geometry_msgs::Twist cmd_vel;
-          cmd_vel.linear.x = -0.1;
-          cmd_vel.angular.z = 0.0;
+          cmd_vel.linear.x = -0.5;
+          cmd_vel.angular.z = 1.0;
           cmd_vel_pub.publish(cmd_vel);
       }
               
-      if(backUpCounter==20){
-          // Turn the robot around...
-          geometry_msgs::Twist cmd_vel;
-          cmd_vel.linear.x = 0.0;
-          cmd_vel.angular.z = 0.5;
-          cmd_vel_pub.publish(cmd_vel);
-      }
+      // if(backUpCounter==50){
+      //     // Turn the robot around...
+      //     geometry_msgs::Twist cmd_vel;
+      //     cmd_vel.linear.x = 0.0;
+      //     cmd_vel.angular.z = 0.5;
+      //     cmd_vel_pub.publish(cmd_vel);
+      // }
               
-      if(backUpCounter==100){
+      if(backUpCounter==25){
           // Stop the robot...
           geometry_msgs::Twist cmd_vel;
           cmd_vel.linear.x = 0.0;
@@ -673,7 +712,7 @@ void PatrolAgent::do_interference_behavior()
     // Stop the robot..         
     cancelGoal();
     ROS_INFO("Robot stopped");
-    ros::Duration delay(3); // seconds
+    ros::Duration delay(0.5); // seconds
     delay.sleep();
     ResendGoal = true;
 #else    
@@ -717,22 +756,40 @@ void PatrolAgent::send_positions()
 
     msg.pose.pose.position.x = xPos[idx]; //send odometry.x
     msg.pose.pose.position.y = yPos[idx]; //send odometry.y
-  
+
     positions_pub.publish(msg);
     ros::spinOnce();
+
 }
 
 
 void PatrolAgent::receive_positions()
 {
-    
+    // Log all robot positions every second
+
+    if (ID_ROBOT == 0) {
+
+        double current_time = ros::Time::now().toSec();
+        if (current_time - last_pos_log > 0.99) {
+
+            last_pos_log = current_time;
+
+            fprintf(positionstimecsvfile, "%.1f;",current_time);
+
+            for (uint8_t ndx=0; ndx < TEAMSIZE; ndx++) {
+                fprintf(positionstimecsvfile, "%.3f; %.3f;",xPos[ndx],yPos[ndx]);
+            } 
+            fprintf(positionstimecsvfile, "\n");
+            fflush(positionstimecsvfile);
+        }
+    }
 }
 
 void PatrolAgent::positionsCB(const nav_msgs::Odometry::ConstPtr& msg) { //construir tabelas de posições
         
 //     printf("Construir tabela de posicoes (receber posicoes), ID_ROBOT = %d\n",ID_ROBOT);    
-        
-    char id[20]; //identificador do robot q enviou a msg d posição...
+
+    char id[20]; //robot identifier that sends the position msg...
     strcpy( id, msg->header.frame_id.c_str() );
     //int stamp = msg->header.seq;
 //     printf("robot q mandou msg = %s\n", id);
@@ -768,7 +825,7 @@ void PatrolAgent::positionsCB(const nav_msgs::Odometry::ConstPtr& msg) { //const
         }   
 //      printf ("Position Table:\n frame.id = %s\n id_robot = %d\n xPos[%d] = %f\n yPos[%d] = %f\n\n", id, idx, idx, xPos[idx], idx, yPos[idx] );       
     }
-    
+
     receive_positions();
 }
 

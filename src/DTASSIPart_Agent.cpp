@@ -92,15 +92,21 @@ void DTASSIPart_Agent::init(int argc, char** argv) {
     //initialize parameters
 
 }
-
+/**
+ * @brief Computes bid
+ * @param nv Next vertex in question
+ * @return
+ */
 double DTASSIPart_Agent::compute_bid(int nv){
 
-    /*printf("computing bid for vertex %d (using dynamic partition) \n ",nv);
+    /*
+    printf("computing bid for vertex %d (using dynamic partition) \n ",nv);
     printf("current tasks = ");
     for (size_t i = 0; i<dimension;i++){
         printf(" %d, ",tasks[i]);	
     }
-    printf("] \n");*/
+    printf("] \n");
+    */
 
     if (nv==next_vertex || nv==next_next_vertex){
         // printf("already going to %d sending 0 (current target: %d)",nv,next_vertex);
@@ -119,7 +125,7 @@ double DTASSIPart_Agent::compute_bid(int nv){
 //		cv = next_vertex;
 //	}
 
-    double bid_value = compute_cost(nv,current_center_location)*num_tasks; 
+    double bid_value = compute_cost(nv,current_center_location)*num_tasks;
     //printf("bid for %d (current center %zu, num task %zu): %.2f \n",nv,current_center_location,num_tasks,bid_value);
     
     return bid_value;
@@ -127,7 +133,9 @@ double DTASSIPart_Agent::compute_bid(int nv){
 
 
 
-
+/**
+ *
+ */
 void DTASSIPart_Agent::compute_center_location(){
 	size_t min = current_vertex;
 //	printf("compute center:: min: %d current center: %d \n",min,current_center_location);
@@ -146,19 +154,23 @@ void DTASSIPart_Agent::compute_center_location(){
 	current_center_location = min;
 	
 }
-
+/**
+ *
+ * @param cv Current vertex in question
+ * @return asd
+ */
 double DTASSIPart_Agent::compute_sum_distance(int cv){
 	if(cv<0 || cv >= dimension){
 //		printf("return big number: cv = %d",cv);
 		return BIG_NUMBER;
 	}
 	double sum = 0.;
-        for (size_t i = 0; i<dimension ; i++){
-			if (tasks[i]){
-	//			printf("sum: %2.f \n",sum);
-				sum+= compute_cost(cv,i);
-			}
+    for (size_t i = 0; i<dimension ; i++){
+	    if (tasks[i]){
+	//	    printf("sum: %2.f \n",sum);
+			sum+= compute_cost(cv,i);
         }
+    }
 	return sum;
 }
 
@@ -181,10 +193,10 @@ void DTASSIPart_Agent::update_tasks(){
 
 ------------*/
 
-        int value = ID_ROBOT;
-        if (value==-1){value=0;}
+    int value = ID_ROBOT;
+    if (value==-1){value=0;}
 
-    	nactivetasks=0;
+    nactivetasks=0;
 	bool changed = false;
 	for (size_t i = 0; i< dimension; i++){
 		if (!changed && tasks[i] != (bids[i].robotId == value)){

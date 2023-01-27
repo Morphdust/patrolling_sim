@@ -107,7 +107,11 @@ void DTAGreedy_Agent::init(int argc, char** argv) {
     ROS_INFO("Robot %d: Initial pose %.1f %.1f %.1f",value,origin_x, origin_y, origin_theta);
     
 }
-
+/**
+ * @brief Calculates cost from current vertex to vertex in question
+ * @param vertex Vertex in question to navigate to
+ * @return Double of cost value to vertex
+ */
 double DTAGreedy_Agent::compute_cost(int vertex)
 {
     uint elem_s_path;
@@ -127,26 +131,40 @@ double DTAGreedy_Agent::compute_cost(int vertex)
     return distance;
 }
 
-
+/**
+ * @brief Calculates distance from origin coordinate
+ * @param vertex Vertex in question to calculate to
+ * @return Returns Euclidean distance from origin
+ */
 double DTAGreedy_Agent::distanceFromOrigin(int vertex) {
     double x = vertex_web[vertex].x, y = vertex_web[vertex].y;           
     return sqrt((origin_x-x)*(origin_x-x)+(origin_y-y)*(origin_y-y));
 }
-        
+
+/**
+ * @brief Generates utility value for specific vertex
+ * @details Generates utility value which is a function of the idleness, distance from origin and distance from agent. Returns double
+ * @param vertex Vertex of interest
+ * @return Single variable double of 'importance' of vertex in question
+ */
 double DTAGreedy_Agent::utility(int vertex) {
-    
+    //retrieves the global instantaneous idleness for the vertex in question
     double idl = global_instantaneous_idleness[vertex];
+    //computes the cost to navigate to the vertex in question
     double cost = compute_cost(vertex);
+    //calculates distance from the origin to the vertex in question
     double odist = distanceFromOrigin(vertex);
     double U = theta_idl * idl + theta_cost * cost + theta_odist * odist;
     printf("   -- U[%d] ( %.1f, %.1f, %.1f ) = ( %.1f, %.1f, %.1f ) = %.1f\n",vertex,idl,cost,odist,theta_idl*idl,theta_cost*cost,theta_odist*odist,U);
     return U;
 }
-
+/**
+ * @brief Updates every vertex from when it was last visited
+ */
 void DTAGreedy_Agent::update_global_idleness() 
 {   
     double now = ros::Time::now().toSec();
-    
+
     pthread_mutex_lock(&lock);
     for(size_t i=0; i<dimension; i++) {
         global_instantaneous_idleness[i] += (now-last_update_idl);  // update value    
@@ -156,9 +174,12 @@ void DTAGreedy_Agent::update_global_idleness()
     last_update_idl = now;
 }
 
-// current_vertex (goal just reached)
+/**
+ * @brief Finds the vertex with the highest utility value
+ * @return Vertex index with highest utility value
+ */
 int DTAGreedy_Agent::compute_next_vertex() {
-    
+    //update the global idleness before computing anything else
     update_global_idleness();
     global_instantaneous_idleness[current_vertex] = 0.0;
     
@@ -167,8 +188,10 @@ int DTAGreedy_Agent::compute_next_vertex() {
     int i_maxUtility = 0;
         
     for(size_t i=0; i<dimension; i++){
-        
+
+        //calculates the utility for vertex
         double U = utility(i);
+        //if U has a larger utility than i, set U's vertex to be the highest value and i to be the vertex with highest utility
         if (U > maxUtility && i!=current_vertex){
             maxUtility = U;
             i_maxUtility = i;
@@ -187,6 +210,9 @@ int DTAGreedy_Agent::compute_next_vertex() {
 
 // current_vertex (goal just reached)
 // next_vertex (next goal)
+/**
+ * @brief Sends idleness updates of every vertex, adds communication delay
+ */
 void DTAGreedy_Agent::send_results() {
     int value = ID_ROBOT;
     if (value==-1){value=0;}
@@ -202,8 +228,9 @@ void DTAGreedy_Agent::send_results() {
     pthread_mutex_lock(&lock);
     
     for(size_t i=0; i<dimension; i++) {
-        // convert in 1/10 of secs (integer value) Max value 3276.8 second (> 50 minutes) !!!
+        // convert in 1/10 of secs (to an integer value) Max value 3276.8 second (> 50 minutes) !!!
         int ms = (int)(global_instantaneous_idleness[i]*10);
+        //sets ms to max Int16 value if it is greater than
         if (ms>32768) { // Int16 is used to send messages
             ROS_WARN("Wrong conversion when sending idleness value in messages!!!");
             ms=32000;
@@ -216,19 +243,22 @@ void DTAGreedy_Agent::send_results() {
     msg.data.push_back(next_vertex);
     //printf(",%d]\n",next_vertex);
     pthread_mutex_unlock(&lock);
-    
+    ///Function call that includes delay
     do_send_message(msg);   
       
 }
 
-
+/**
+ * @brief Take results from simulator and update idleness variable
+ */
 void DTAGreedy_Agent::receive_results() {
     //result= [ID,msg_type,global_idleness[1..dimension],next_vertex]
     
     double now = ros::Time::now().toSec();
     
     //printf("  ** here ** \n");
-    
+    ///vresults is the global variable for the SIMULATOR
+    ///global_instantaneous_idleness is the variable for the DTAG algorithm
     std::vector<int>::const_iterator it = vresults.begin();
     int id_sender = *it; it++;
     int msg_type = *it; it++;
@@ -250,9 +280,10 @@ void DTAGreedy_Agent::receive_results() {
         if (isnan(global_instantaneous_idleness[i])) {
             printf("NAN Exiting!!!"); return;
         }
-
+        ///updates global instantaneous idleness array
         global_instantaneous_idleness[i] = std::min(
             global_instantaneous_idleness[i]+(now-last_update_idl), rgi);
+        ///whats smaller, the value from the simulator managed variable, or the calculated one from the algorithm
         //printf("    ++ GII[%lu] = %.1f (r=%.1f)\n",i,global_instantaneous_idleness[i],rgi);
     }
     pthread_mutex_unlock(&lock);

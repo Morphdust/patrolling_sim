@@ -54,11 +54,14 @@ public:
     
 };
 
-
+/**
+ * Returns next vertex to visit based on current vertex and neighbours
+ * @return Returns ID of next vertex to navigate to
+ */
 int Random_Agent::compute_next_vertex() {
     // Random algorithm
     
-    //number of neighbors of current vertex (number of existing possibilites)
+    //number of neighbors of current vertex (number of existing possibilities)
     uint num_neighs = vertex_web[current_vertex].num_neigh;
     uint next_vertex;
     

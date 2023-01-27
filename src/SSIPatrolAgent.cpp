@@ -44,7 +44,9 @@ SSIPatrolAgent::SSIPatrolAgent() : cf(CONFIG_FILENAME)
     pthread_mutex_init(&lock, NULL);
 }
     
-
+/**
+ *
+ */
 void SSIPatrolAgent::onGoalComplete()
 {
     printf("DTAP onGoalComplete!!!\n");
@@ -100,8 +102,12 @@ bool* SSIPatrolAgent::create_selected_vertices(){
     	}	
 	return sv;
 }
-
+/**
+ * @brief Function to reset the vertices list for all
+ * @param sv List of selected vertices
+ */
 void SSIPatrolAgent::reset_selected_vertices(bool* sv){
+    //setting every element in sv to be false
 	for(size_t i=0; i<dimension; i++) {
 		sv[i] = false;
     }
@@ -110,19 +116,30 @@ void SSIPatrolAgent::reset_selected_vertices(bool* sv){
     } 	
 }
 
+/**
+ * @brief Function to select the vertices that are NOT the immediate neighbour
+ * @param sv List of selected vertices that have been visited or not
+ * @param cv Index of current vertex
+ */
 void SSIPatrolAgent::select_faraway_vertices(bool* sv, int cv){
 	for(size_t i=0; i<dimension; i++) {
 		sv[i] = true;
     }
+    //number of neighbours for given point in vertex_web
 	uint num_neighs = vertex_web[cv].num_neigh;
+
+    //Goes through each immediate neighbour and sets their index in sv to be false
     for (size_t i=0; i<num_neighs; i++){
       size_t neighbor = vertex_web[cv].id_neigh[i];
 	  sv[neighbor] = false; 	
 	}
     if (current_vertex >= 0 && current_vertex < dimension){
 		selected_vertices[current_vertex] = true; //do not consider next vertex as possible goal 
-    } 	
-	/* print farway vertices
+    }
+    //in selected_vertices array, true signifies do not visit, or already visited
+    //False signifies 'to be' visited
+
+	/* print faraway vertices
 	printf("FARAWAY \n [ ");
 	for(size_t i=0; i<dimension; i++) {
 		printf("%d ",sv[i]);
@@ -130,6 +147,11 @@ void SSIPatrolAgent::select_faraway_vertices(bool* sv, int cv){
 	printf("]\n"); */
 }
 
+/**
+ * @brief Function to check if all nodes have been selected or not
+ * @param sv List of selected vertices
+ * @return Returns true if all vertices have been visited, false if any have not
+ */
 bool SSIPatrolAgent::all_selected(bool* sv){
 	for(size_t i=0; i<dimension; i++) {
 	    if (!sv[i]){ 
@@ -139,7 +161,11 @@ bool SSIPatrolAgent::all_selected(bool* sv){
 	return true;
 }
 
-
+/**
+ * @brief Initiation function to set variables to starting values
+ * @param argc
+ * @param argv
+ */
 void SSIPatrolAgent::init(int argc, char** argv) {
         
     PatrolAgent::init(argc,argv);
@@ -182,6 +208,11 @@ void SSIPatrolAgent::init(int argc, char** argv) {
 
 }
 
+/**
+ * @brief Computes cost from current vertex as global variable to specified vertex as argument
+ * @param vertex Vertex to calculate distance _TO_
+ * @return Double distance from current vertex to next vertex
+ */
 double SSIPatrolAgent::compute_cost(int vertex)
 {
     uint elem_s_path;
@@ -228,6 +259,12 @@ double SSIPatrolAgent::compute_cost(int vertex)
 }        
 */
 
+/**
+ * @brief Computes cost from current vertex to next vertex passed as arguments
+ * @param cv Current vertex
+ * @param nv Next vertex
+ * @return Double distance from current vertex to next vertex
+ */
 double SSIPatrolAgent::compute_cost(int cv, int nv)
 {
     uint elem_s_path;
@@ -249,7 +286,12 @@ double SSIPatrolAgent::compute_cost(int cv, int nv)
     return distance;
 }        
 
-
+/**
+ * Computes number of notes between robot and ultimate goal node
+ * @param cv Current vertex
+ * @param nv Vertex in question to navigate to
+ * @return Number of nodes in graph to traverse to get to ultimate node
+ */
 size_t SSIPatrolAgent::compute_hops(int cv, int nv)
 {
     uint elem_s_path;
@@ -275,7 +317,13 @@ size_t SSIPatrolAgent::compute_hops(int cv, int nv)
 #endif
 }        
 
-
+/**
+ * Computes utility cost between 'cv' and 'nv' as a function of idleness of node, number of hops to node, size of graph and theta weighting of hops and initial node
+ * @brief Computes utility cost
+ * @param cv Current vertex in question
+ * @param nv Next vertex in question
+ * @return Value of utility between current and next vertex
+ */
 double SSIPatrolAgent::utility(int cv,int nv) {
     double idl = global_instantaneous_idleness[nv];
     
@@ -291,11 +339,13 @@ double SSIPatrolAgent::utility(int cv,int nv) {
     return U;
 }
 
-
+/**
+ * @brief Function to update global idleness variable
+ */
 void SSIPatrolAgent::update_global_idleness() 
 {   
     double now = ros::Time::now().toSec();
-    
+    //locks idleness variable for use
     pthread_mutex_lock(&lock);
     for(size_t i=0; i<dimension; i++) {
         global_instantaneous_idleness[i] += (now-last_update_idl);  // update value    
@@ -309,6 +359,12 @@ void SSIPatrolAgent::update_global_idleness()
     last_update_idl = now;
 }
 
+/**
+ * @brief Function to find and return the next vertex to visit
+ * @param cv Current vertex index
+ * @param sv Pointer to bool array of dimension 'dimension'
+ * @return Index of vertex with highest utility
+ */
 int SSIPatrolAgent::return_next_vertex(int cv,bool* sv){
     double maxUtility = -1e9;
     int i_maxUtility = 0;
@@ -322,13 +378,18 @@ int SSIPatrolAgent::return_next_vertex(int cv,bool* sv){
         }
         
     }
-    
+    ///Sets nv to be the maximum utility value found
     int nv = i_maxUtility; // vertex_web[current_vertex].id_neigh[i_maxUtility];
     sv[nv] = true; //this vertex was considered as a next vertex
     printf("DTASSI: returned vertex = %d (U = %.2f)\n",nv,maxUtility);
     return nv;
 }
-
+/**
+ * @brief Selects next vertex
+ * @param cv
+ * @param sv
+ * @return
+ */
 int SSIPatrolAgent::select_next_vertex(int cv,bool* sv){
     
     double maxUtility = -1e9;
@@ -420,13 +481,20 @@ double SSIPatrolAgent::compute_bid(int nv){
 
 	return path_cost;
 }
-
+/**
+ * @brief Forces a bid on specific vertex
+ * @param nv Vertex to force a bid for
+ * @param bv Bid value for the vertex
+ * @param rid Robot ID that causes bid
+ */
 void SSIPatrolAgent::force_bid(int nv,double bv,int rid){
 	//printf("forcing bid for vertex %d with value %.2f from robot %d \n",nv,bv,rid);
 	bids[nv].bidValue = bv;
 	bids[nv].robotId = rid;
 }
-
+/**
+ * @brief Delays function of 'timeout' and 'nactivetasks / 10'
+ */
 void SSIPatrolAgent::wait(){
 	double t = std::min(timeout,1.0+nactivetasks*0.1);
 #if DEBUG_PRINT
@@ -444,12 +512,19 @@ void SSIPatrolAgent::wait(){
 */
 }
 
-
+/**
+ * @brief Computes next vertex based on global 'current_vertex'
+ * @return Next vertex to be visited
+ */
 int SSIPatrolAgent::compute_next_vertex() {
 	compute_next_vertex(current_vertex);
 }
 
-// current_vertex (goal just reached)
+/**
+ * @brief Computes next vertex based on passed argument
+ * @param cv Current vertex int
+ * @return Next vertex to be visited
+ */
 int SSIPatrolAgent::compute_next_vertex(int cv) {
 
     update_global_idleness();
@@ -534,6 +609,10 @@ int SSIPatrolAgent::compute_next_vertex(int cv) {
 }
 
 
+
+/**
+ * @brief Checks if tasks have been assigned to a robot
+ */
 // NOTE: redefined in DTASSIPart_Agent
 void SSIPatrolAgent::update_tasks(){
     int value = ID_ROBOT;
@@ -542,7 +621,11 @@ void SSIPatrolAgent::update_tasks(){
         tasks[i] = (bids[i].robotId == value);
     }
 }
-
+/**
+ * @brief Generates message data and publishes to results topic
+ * @param nv Next vertex in quesiton
+ * @param bv Bid value double
+ */
 void SSIPatrolAgent::send_target(int nv,double bv) {
 	//msg format: [ID_ROBOT,msg_type,next_vertex_index,bid_value]
         int value = ID_ROBOT;
@@ -552,7 +635,7 @@ void SSIPatrolAgent::send_target(int nv,double bv) {
     	std_msgs::Int16MultiArray msg;
     	msg.data.clear();
 
-	msg.data.push_back(value);
+	    msg.data.push_back(value);
         msg.data.push_back(msg_type);
         msg.data.push_back(nv);
 #if DEBUG_PRINT
@@ -564,13 +647,17 @@ void SSIPatrolAgent::send_target(int nv,double bv) {
             ROS_WARN("Wrong conversion when sending bid value in messages!!!");
             ibv=32000;
         }
-	msg.data.push_back(ibv);
+	    msg.data.push_back(ibv);
     	
-	do_send_message(msg);   
+	    do_send_message(msg);
     
 }
 
-
+/**
+ * @brief Sends bit message
+ * @param nv Next vertex int
+ * @param bv Bid value double
+ */
 void SSIPatrolAgent::send_bid(int nv,double bv) {
         int value = ID_ROBOT;
         if (value==-1){value=0;}
@@ -580,7 +667,7 @@ void SSIPatrolAgent::send_bid(int nv,double bv) {
     	std_msgs::Int16MultiArray msg;
     	msg.data.clear();
 
-	msg.data.push_back(value);
+	    msg.data.push_back(value);
         msg.data.push_back(msg_type);
         msg.data.push_back(nv);
 #if DEBUG_PRINT
@@ -592,11 +679,18 @@ void SSIPatrolAgent::send_bid(int nv,double bv) {
             ibv=32000;
         }
         msg.data.push_back(ibv);
-	do_send_message(msg);   
+	    do_send_message(msg);
 }
 
 
-//return true if the robot holds the best bid for nv OR if the vertex is adjacent on the patrol graph, the idleness is much higher than normal and no one else is going to the same vertex
+//
+/**
+ * Return true if the robot holds the best bid for nv OR if the vertex is adjacent on the patrol graph, the idleness is much higher than normal and no one else is going to the same vertex
+ * @brief Bids for next vertex to visit
+ * @param cv Current vertex int
+ * @param nv Next vertex int
+ * @return Bool depending on if the robot holds the best bid for the next vertex
+ */
 bool SSIPatrolAgent::greedy_best_bid(int cv, int nv){
 
 
@@ -605,19 +699,25 @@ bool SSIPatrolAgent::greedy_best_bid(int cv, int nv){
 
 
 	bool adj = (compute_hops(cv,nv) <= 1);
-
-	double avg_idleness = 0.;
-	for(size_t i=0; i<dimension; i++) {
-        	avg_idleness += global_instantaneous_idleness[i];
-	}
-	avg_idleness = avg_idleness/((double) dimension);
-	double std_idleness = 0.;
-	for(size_t i=0; i<dimension; i++) {
-        std_idleness += (global_instantaneous_idleness[i] - avg_idleness)*(global_instantaneous_idleness[i] - avg_idleness);
-	}
-	std_idleness = sqrt(std_idleness/((double) dimension));
+    ///Calculates standard deviation of idleness
+    ///{
+        double avg_idleness = 0.;
+        for (size_t i = 0; i < dimension; i++) {
+            avg_idleness += global_instantaneous_idleness[i];
+        }
+        avg_idleness = avg_idleness / ((double) dimension);
+        double std_idleness = 0.;
+        for (size_t i = 0; i < dimension; i++) {
+            std_idleness += (global_instantaneous_idleness[i] - avg_idleness) *
+                            (global_instantaneous_idleness[i] - avg_idleness);
+        }
+        std_idleness = sqrt(std_idleness / ((double) dimension));
+    ///}
+    //Is the value for instantaneous idleness greater than 2*standard_deviation + average
 	bool high_idleness = (global_instantaneous_idleness[nv] > (2*std_idleness + avg_idleness));
+
 	bool conflict = (bids[nv].bidValue == 0);
+    //true if vertex is adjacent, AND high idleness on average, AND another robot has not bid for it already then set to true
 	bool greedy_cond = adj && high_idleness && !conflict;
 
 #if DEBUG_PRINT
@@ -651,6 +751,9 @@ bool SSIPatrolAgent::best_bid(int nv){
 // next_vertex (next goal)
 //make this blocking to wait for bids
 //
+/**
+ * Creates message of DTAGreedy type and publishes to topic
+ */
 void SSIPatrolAgent::send_results() {
     int value = ID_ROBOT;
     if (value==-1){value=0;}
@@ -683,14 +786,24 @@ void SSIPatrolAgent::send_results() {
     do_send_message(msg);   
 }
 
+/**
+ * @brief Updates bids accounting for hysteresis
+ * @param nv Next vertex
+ * @param bv Bid value
+ * @param senderId Robot ID that called function
+ */
 void SSIPatrolAgent::update_bids(int nv, double bv, int senderId){
-	if (bids[nv].bidValue >= (1 + hist)*bv) { //using histeresis to avoid switching when there is no clear benefit
+	if (bids[nv].bidValue >= (1 + hist)*bv) { //using hysteresis to avoid switching when there is no clear benefit
 		bids[nv].bidValue = bv;
 		bids[nv].robotId = senderId;
 	}
 	update_tasks();
 }
 
+/**
+ *
+ * @param it
+ */
 void SSIPatrolAgent::idleness_msg_handler(std::vector<int>::const_iterator it){
 
     double now = ros::Time::now().toSec();
@@ -769,7 +882,11 @@ void SSIPatrolAgent::task_request_msg_handler(std::vector<int>::const_iterator i
 }
 #endif
 
-
+/**
+ * @brief Handler of bids
+ * @param it Iterator of results
+ * @param senderId ID of robot that called function
+ */
 void SSIPatrolAgent::bid_msg_handler(std::vector<int>::const_iterator it, int senderId){
 	int nv = *it; it++;
 	double bv = *it; it++;
@@ -779,7 +896,9 @@ void SSIPatrolAgent::bid_msg_handler(std::vector<int>::const_iterator it, int se
 	update_bids(nv,bv,senderId);
 }
 
-
+/**
+ * Handler for receiving results based on message type
+ */
 void SSIPatrolAgent::receive_results() {
     //result= [ID,msg_type,global_idleness[1..dimension],next_vertex]
         
