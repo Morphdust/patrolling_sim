@@ -46,6 +46,8 @@
 #include <time.h>
 #include <nav_msgs/Odometry.h>
 #include <std_srvs/Empty.h>
+#include <std_msgs/Float32MultiArray.h>
+#include "patrolling_sim/anomaly_service.h"
 
 #include "PatrolAgent.h"
 
@@ -90,11 +92,13 @@ void PatrolAgent::init(int argc, char** argv) {
     
     //Create Structure to save the Graph Info;
     vertex_web = new vertex[dimension];
-    
     //Get the Graph info from the Graph File
     GetGraphInfo(vertex_web, dimension, graph_file.c_str());
-    
-    
+
+    //Initialise belief states
+    belief_states.resize(dimension);
+    second_agent_belief_states.resize(dimension);
+    std::fill(belief_states.begin(), belief_states.end(), 0.5);
     uint nedges = GetNumberEdges(vertex_web,dimension);
     
     printf("Loaded graph %s with %d nodes and %d edges\n",mapname.c_str(),dimension,nedges);
@@ -125,20 +129,24 @@ void PatrolAgent::init(int argc, char** argv) {
     communication_delay = 0.0;
     lost_message_rate = 0.0;
     goal_reached_wait = 0.0;
+    communication_distance = 4;
+    communication_period = 5;
+    /* Define Starting Vertex/Position (Launch File Parameters) */
+    ros::init(argc, argv, "patrol_agent");  // will be replaced by __name:=XXXXXX
+    ros::NodeHandle nh;
 
+    // Set position log save file
     if (ID_ROBOT == 0) {
-        time_t t;
-        time(&t);
-        string positionstimecsvfilename = ctime(&t);
+
+        // Get experiment name from parameter server
+        string expname;
+        nh.getParam("/exp_name", expname);
+
+        string positionstimecsvfilename = expname;
         positionstimecsvfilename.append("_position_log.csv");
         positionstimecsvfile = fopen (positionstimecsvfilename.c_str(),"a");
     }
 
-    /* Define Starting Vertex/Position (Launch File Parameters) */
-
-    ros::init(argc, argv, "patrol_agent");  // will be replaced by __name:=XXXXXX
-    ros::NodeHandle nh;
-    
     // wait a random time (avoid conflicts with other robots starting at the same time...)
     double r = 3.0 * ((rand() % 1000)/1000.0);
     ros::Duration wait(r); // seconds
@@ -177,23 +185,25 @@ void PatrolAgent::init(int argc, char** argv) {
         }
         //ROS_INFO("last_visit[%d]=%f", i, last_visit[i]);
     }
-        
-    //Publicar dados de "odom" para nó de posições
+    //Publish data from "odom" to positions node
     positions_pub = nh.advertise<nav_msgs::Odometry>("positions", 1); //only concerned about the most recent
         
-    //Subscrever posições de outros robots
+    //Subscribe positions from other robots
     positions_sub = nh.subscribe<nav_msgs::Odometry>("positions", 10, boost::bind(&PatrolAgent::positionsCB, this, _1));  
     
     char string1[40];
     char string2[40];
+    char string3[40];
     
     if(ID_ROBOT==-1){ 
         strcpy (string1,"odom"); //string = "odom"
         strcpy (string2,"cmd_vel"); //string = "cmd_vel"
+        strcpy (string3,"belief_state"); //string = "belief_state"
         TEAMSIZE = 1;
     }else{ 
         sprintf(string1,"robot_%d/odom",ID_ROBOT);
         sprintf(string2,"robot_%d/cmd_vel",ID_ROBOT);
+        sprintf(string3, "robot_%d/belief_state",ID_ROBOT);
         TEAMSIZE = ID_ROBOT + 1;
     }   
 
@@ -202,7 +212,42 @@ void PatrolAgent::init(int argc, char** argv) {
 
     //Cmd_vel to backup:
     cmd_vel_pub  = nh.advertise<geometry_msgs::Twist>(string2, 1);
-    
+
+    //Get TEAMSIZE from parameter server, like a normal person
+    nh.getParam("TEAMSIZE", TEAMSIZE);
+    nh.getParam("communication_distance", communication_distance);
+    nh.getParam("communication_period", communication_period);
+    //Initialises all agents with current time as last communication time
+    communication_history.resize(TEAMSIZE);
+
+    for(size_t i=0; i<TEAMSIZE; i++) {
+        communication_history[i] = ros::Time::now().toSec();
+    }
+
+    //creates vector of topic names -- includes robot's OWN ID, we want to subscribe to it to get updates from other agents that initiate the pairwise comparison
+    vector<string> belief_topics_vector(32, "");
+    char topic_name[40];
+
+    for(int i=0; i < TEAMSIZE; i++){
+        sprintf(topic_name, "robot_%d/belief_state", i);
+        belief_topics_vector[i] = topic_name;
+    }
+
+    //Publisher for belief states
+    belief_publisher.resize(TEAMSIZE);
+
+    for(int i=0; i<TEAMSIZE; i++){
+        belief_publisher[i] = nh.advertise<std_msgs::Float32MultiArray>(belief_topics_vector[i], 1, true);
+    }
+
+    sprintf(topic_name, "robot_%d/belief_state", ID_ROBOT);
+
+    //Specific callback function for agent's own topic
+    personal_belief_subscriber = nh.subscribe<std_msgs::Float32MultiArray>(topic_name, 1, boost::bind(&PatrolAgent::personal_belief_topic_CB, this, _1));
+
+    //Service client for anomaly node
+    anomaly_client = nh.serviceClient<patrolling_sim::anomaly_service>("anomaly_service");
+
     // Subscrever para obter dados de "odom" do robot corrente
     // Subscribe to get "odom" data from current robot
     odom_sub = nh.subscribe<nav_msgs::Odometry>(string1, 1, boost::bind(&PatrolAgent::odomCB, this, _1)); //size of the buffer = 1 (?)
@@ -231,12 +276,11 @@ void PatrolAgent::ready() {
         sprintf(move_string,"robot_%d/move_base",ID_ROBOT);
     }
     
-    ac = new MoveBaseClient(move_string, true); 
-    ROS_INFO(ac);
+    ac = new MoveBaseClient(move_string, true);
     //wait for the action server to come up
     while(!ac->waitForServer(ros::Duration(5.0))){
         ROS_INFO("Waiting for the move_base action server to come up");
-    } 
+    }
     ROS_INFO("Connected with move_base action server");    
     
     initialize_node(); //announce that agent is alive
@@ -281,7 +325,6 @@ void PatrolAgent::readParams() {
 }
 
 void PatrolAgent::run() {
-    
     // get ready
     ready();
     
@@ -316,6 +359,7 @@ void PatrolAgent::run() {
         
         if (goal_complete) {
             onGoalComplete();  // can be redefined
+            call_anomaly_service(next_vertex);
             resend_goal_count=0;
         }
         else if (not crashed) { // goal not complete (active)
@@ -344,9 +388,10 @@ void PatrolAgent::run() {
             }   
         
         } // if (goal_complete)
-        
-		loop_rate.sleep(); 
-
+        if(check_comparison_range()){
+            ROS_INFO("Comparison was performed! yay");
+        }
+		loop_rate.sleep();
     } // while ros.ok    
 }
 
@@ -429,7 +474,6 @@ void PatrolAgent::update_idleness() {
 }
 
 void PatrolAgent::initialize_node (){ //ID,msg_type,1
-    
     int value = ID_ROBOT;
     if (value==-1){value=0;}
     ROS_INFO("Initialize Node: Robot %d",value); 
@@ -700,7 +744,6 @@ void PatrolAgent::backup(){
       backUpCounter++;
     
     }
-    
 }
 
 void PatrolAgent::do_interference_behavior()
@@ -742,7 +785,7 @@ void PatrolAgent::send_positions()
 {
     //Publish Position to common node:
     nav_msgs::Odometry msg; 
-    
+
     int idx = ID_ROBOT;
 
     if (ID_ROBOT <= -1){
@@ -762,7 +805,10 @@ void PatrolAgent::send_positions()
 
 }
 
-
+/**
+ * James Code to log positions
+ *
+ */
 void PatrolAgent::receive_positions()
 {
     // Log all robot positions every second
@@ -785,6 +831,11 @@ void PatrolAgent::receive_positions()
     }
 }
 
+/**
+ * Gets positions from ALL other agents and collates them.
+ * Also updates TEAMSIZE here for some stupid reason
+ * @param msg
+ */
 void PatrolAgent::positionsCB(const nav_msgs::Odometry::ConstPtr& msg) { //construir tabelas de posições
         
 //     printf("Construir tabela de posicoes (receber posicoes), ID_ROBOT = %d\n",ID_ROBOT);    
@@ -801,7 +852,8 @@ void PatrolAgent::positionsCB(const nav_msgs::Odometry::ConstPtr& msg) { //const
     
         char str_idx[4];
         uint i;
-        
+
+        //To skip past the "ROBOT_" part of string
         for (i=6; i<10; i++){
             if (id[i]=='/'){
                 str_idx[i-6] = '\0';
@@ -941,4 +993,191 @@ void PatrolAgent::resultsCB(const std_msgs::Int16MultiArray::ConstPtr& msg) {
 
     ros::spinOnce();
   
+}
+
+/**
+ * Check if robots are near each other, and communicate belief vector
+ * @param robot_id Robot ID that started the comparison check
+ * @return Bool if comparison occurred or not
+ */
+
+bool PatrolAgent::check_comparison_range(){
+    bool comparison_occurred = false;
+    double time_delta, agent_distance, now;
+    std::vector<float> second_agent_belief;
+
+    //ROS_INFO("howdy there partner");
+        //cant be this causing crash
+    for(int second_robot=0; second_robot<TEAMSIZE; second_robot++){
+        if (second_robot != ID_ROBOT){
+
+            agent_distance = sqrt(pow( (xPos[ID_ROBOT] - xPos[second_robot]), 2) + pow((yPos[ID_ROBOT] - yPos[second_robot]), 2));
+
+            if(agent_distance <= communication_distance){
+                now = ros::Time::now().toSec();
+                //TODO how up update communication history on second_robot?
+                time_delta = now - communication_history[second_robot];
+                if(time_delta >= communication_period){
+                    ROS_INFO("I'm going to communicate!");
+                    //subscribes to second_agent topic, sets received_second_belief to be false
+                    //wait for message to be received
+                    PatrolAgent::second_belief_get(second_robot);
+                    while(!received_second_belief){
+                        //PatrolAgent::second_belief_get(second_robot);
+
+                        ros::Rate loop_rate(2); //2 sec
+                        loop_rate.sleep();
+                        ros::spinOnce();
+
+                        ROS_INFO("Waiting for belief message to be received");
+
+                    }
+                    three_val_pairwise_comp(belief_states, second_agent_belief_states);
+
+                    ROS_INFO("Beliefs were exchanged and initiated by agents %d and %d", ID_ROBOT, second_robot);
+                    now = ros::Time::now().toSec();
+                    communication_history[second_robot] = now;
+                    pub_beliefs(belief_states, ID_ROBOT);
+                    pub_beliefs(belief_states, second_robot);
+                    comparison_occurred = true;
+                }
+            }
+        }
+    }
+    return comparison_occurred;
+}
+
+/**
+ * Callback function to take data from topic and copy it into second_agent_belief
+ * @param msg Callback msg
+ */
+void PatrolAgent::second_belief_get(int second_robot_ID){
+    char topic_name[40];
+    sprintf(topic_name, "robot_%d/belief_state", second_robot_ID);
+    ros::NodeHandle nh;
+
+    received_second_belief = false;     //set receive flag to be false before subscribing
+    second_belief_sub.shutdown();       //shut down previous subscriber before starting new one
+    second_belief_sub = nh.subscribe<std_msgs::Float32MultiArray>(topic_name, 1, boost::bind(&PatrolAgent::second_belief_CB, this, _1));
+    ros::spinOnce();
+}
+
+void PatrolAgent::second_belief_CB(const std_msgs::Float32MultiArray::ConstPtr& msg){
+    for(int i=0; i < dimension ; i++){
+        second_agent_belief_states = msg->data;
+    }
+    received_second_belief = true;
+}
+
+/**
+ * Callback function for agent's OWN belief topic
+ * Takes data from topic and updates local belief_states
+ * @param msg Reference to topic data
+ */
+void PatrolAgent::personal_belief_topic_CB(const std_msgs::Float32MultiArray::ConstPtr& msg){
+    for(int i=0; i < dimension ; i++){
+        belief_states[i] = msg->data[i];
+    }
+}
+
+/**
+ * Function to publish the beliefs to topics based on robot_id passed as argument and data of belief_states
+ * @param belief_states Data of belief states as vector<float>
+ * @param robot_id ID of agent to publish to
+ */
+void PatrolAgent::pub_beliefs(std::vector<float>& belief_states, int robot_id){
+    std_msgs::Float32MultiArray msg;
+
+    //creates array dimension object
+    msg.layout.dim.push_back(std_msgs::MultiArrayDimension());
+    msg.layout.dim[0].size = dimension;
+    msg.layout.dim[0].stride = 1;
+
+    //creates string with robot_id in label to retrieve by monitor
+    msg.layout.dim[0].label = std::to_string(robot_id);
+    msg.data.clear();
+    //inserts data from belief_states
+    msg.data.insert(msg.data.end(), belief_states.begin(), belief_states.end());
+
+    belief_publisher[robot_id].publish(msg);
+
+    ros::spinOnce();
+}
+/**
+ * Performs pairwise comparison using three values: true, false and don't know
+ * @param first_agent_belief Reference to vector of first agent belief
+ * @param second_agent_belief Reference to vector of second agent belief
+ * @param dimension Number of nodes in graph
+ */
+void PatrolAgent::three_val_pairwise_comp(std::vector<float>& first_agent_belief, std::vector<float>& second_agent_belief){
+
+    double yes = 1.0;
+    double no = 0.0;
+
+    for(int i=0; i < dimension; i++){
+        if(first_agent_belief[i] != second_agent_belief[i]){
+
+            if( ( first_agent_belief[i] != 0.5 ) && ( second_agent_belief[i] != 0.5 ) ){
+                first_agent_belief[i] = 0.5;
+            }
+            if( (first_agent_belief[i] == yes) || (second_agent_belief[i] == yes)){
+                first_agent_belief[i] = yes;
+            }
+            else{
+                first_agent_belief[i] = no;
+            }
+        }
+    }
+    second_agent_belief = first_agent_belief;
+}
+/**
+ * Calls anomaly service, checks if anomaly is present there, prints information
+ * Publishes anomaly status to belief topic
+ * @param vertex_arrived The vertex agent arrived at to check if there is an anomaly there
+ */
+void PatrolAgent::call_anomaly_service(int vertex_arrived){
+    patrolling_sim::anomaly_service srv;
+    std::string anomaly = "no";
+
+
+    srv.request.robot_ID = ID_ROBOT;
+    srv.request.graph_node_ID = vertex_arrived;
+    if(anomaly_client.call(srv)){
+        if(srv.response.anomaly_status){
+            anomaly = "an";
+        }
+        ROS_INFO("I saw %s anomaly", anomaly.c_str());
+        belief_states[vertex_arrived] = srv.response.anomaly_status;
+
+        pub_beliefs(belief_states, ID_ROBOT);
+    }
+    else{
+        ROS_ERROR("Failed to call service anomaly_node");
+    }
+}
+
+void scenario_name(char* name, const char* graph_file, const char* teamsize_str)
+{
+    uint i, start_char=0, end_char = strlen(graph_file)-1;
+
+    for (i=0; i<strlen(graph_file); i++){
+        if(graph_file[i]=='/' && i < strlen(graph_file)-1){
+            start_char = i+1;
+        }
+
+        if(graph_file[i]=='.' && i>0){
+            end_char = i-1;
+            break;
+        }
+    }
+
+    for (i=start_char; i<=end_char; i++){
+        name [i-start_char] = graph_file [i];
+        if (i==end_char){
+            name[i-start_char+1] = '\0';
+        }
+    }
+
+    strcat(name,"_");
+    strcat(name,teamsize_str);
 }

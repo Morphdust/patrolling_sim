@@ -44,6 +44,7 @@
 #include <fstream>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #include <ros/ros.h>
 #include <ros/package.h> //to get pkg path
@@ -53,6 +54,7 @@
 #include <tf/transform_listener.h>
 #include <std_msgs/Int16MultiArray.h>
 #include <std_msgs/String.h>
+#include <std_msgs/Float32MultiArray.h>
 
 using namespace std;
 
@@ -125,7 +127,9 @@ uint interference_cnt = 0;
 uint complete_patrol = 0;
 uint patrol_cnt = 1;
 
-
+vector<float> belief_matrix;
+FILE *belief_results;
+string belief_filename;
 
 #if SAVE_HYSTOGRAMS
 #define hn ((int)(MAXIDLENESS/RESOLUTION)+1)
@@ -617,9 +621,56 @@ void update_stats(int id_robot, int goal) {
     dolog("  update_stats - end");
 
 }
+//TODO check filenames n shit
+/**
+ * belief_matrix is a global vector of vectors of 2D
+ * belief_matrix is updated every time there's an update to a topic
+ * belief_matrix is then written to the results file along with the current time that update occurred
+ *
+ **/
+void write_belief_matrix_file(){
+    double current_time = ros::Time::now().toSec();
+
+    belief_results = fopen(belief_filename.c_str(), "a");
+
+    fprintf(belief_results, "%.2f ;", current_time);
+    int agent_index = 0;
+    for(int i=0; i<teamsize; i++){
+        agent_index = i * dimension;
+
+        for(int j=0; j < dimension; j++) {
+            //for printing last element WITHOUT a comma
+            if (j == (dimension - 1)) {
+                fprintf(belief_results, "%.1f", belief_matrix[ agent_index + j ]);
+            }else{
+                fprintf(belief_results, "%.1f,", belief_matrix[ agent_index + j ]);
+            }
+        }
+        fprintf(belief_results, ";");
+    }
+    fprintf(belief_results, "\n");
+
+    fclose(belief_results);
+}
 
 
-int main(int argc, char** argv){  //pass TEAMSIZE GRAPH ALGORITHM
+
+//TODO check the stoi and robot_id as a string works ok
+void master_belief_callback(const std_msgs::Float32MultiArray::ConstPtr& msg){
+
+    int robot_id = stoi(msg->layout.dim[0].label);
+    int robot_multiple = robot_id * dimension;
+
+    std::vector<float> temp_vector = msg->data;
+
+    //TODO the issue is inserting to matrix here
+    std::copy( temp_vector.begin(), temp_vector.end(), belief_matrix.begin() + robot_multiple);
+
+    write_belief_matrix_file();
+}
+
+
+int main(int argc, char** argv){
   /*
   argc=3
   argv[0]=/.../patrolling_sim/bin/monitor
@@ -728,11 +779,12 @@ int main(int argc, char** argv){  //pass TEAMSIZE GRAPH ALGORITHM
     
     // File to log all the idlenesses of an experimental scenario
 
-    string idlfilename,resultsfilename,resultstimecsvfilename,expname; 
+    string idlfilename,resultsfilename,resultstimecsvfilename,expname;
     expname = path4 + "/" + string(strnow);
     idlfilename = expname + "_idleness.csv";
     resultsfilename = expname + "_results.txt";
     resultstimecsvfilename = expname + "_timeresults.csv";
+    belief_filename = expname + "_belief_results.csv";
 
     FILE *fexplist;
     fexplist = fopen("experiments.txt", "a");
@@ -746,6 +798,11 @@ int main(int argc, char** argv){  //pass TEAMSIZE GRAPH ALGORITHM
     resultstimecsvfile = fopen(resultstimecsvfilename.c_str(), "w");
 
     fprintf(resultstimecsvfile,"Time;Idleness min;Idleness avg;Idleness stddev;Idleness max;Interferences\n"); // header
+
+    //Creating file for belief to be written to
+    belief_results = fopen(belief_filename.c_str(), "a");
+    fprintf(belief_results,  "Time; Robot 0 Belief of 0,1,2,Dimension; Robot 1 Belief of 0,1,2,Dimension; ... ; Robot N Belief of 0,1,2,Dimension;\n");   //header information
+    fclose(belief_results);
 
 #if LOG_MONITOR
     char logfilename[80];
@@ -765,11 +822,39 @@ int main(int argc, char** argv){  //pass TEAMSIZE GRAPH ALGORITHM
   //Wait for all robots to connect! (Exchange msgs)
   ros::init(argc, argv, "monitor");
   ros::NodeHandle nh;
-  
+
+  //Set parameter for experiment name
+  nh.setParam("/exp_name", expname);
   //Subscribe "results" from robots
-  results_sub = nh.subscribe("results", 100, resultsCB);   
-  
-  //Publish data to "results"
+  results_sub = nh.subscribe("results", 100, resultsCB);
+
+  //subscribe to all beliefs from robots
+  vector<ros::Subscriber> belief_subscriber[teamsize];
+
+  //creates vector of topic names
+  vector<string> belief_topics_name_vector(32, "");
+  char topic_name[40];
+
+  for(int i=0; i < teamsize; i++){
+      sprintf(topic_name, "robot_%d/belief_state", i);
+      belief_topics_name_vector[i] = topic_name;
+  }
+    //subscriber for all agents and their beliefs
+    //Calls the same callback for each subscriber regardless of topic
+    //takes the robot_ID from the header in topic
+    std::vector<ros::Subscriber> temp_sub(teamsize);
+  for(int i=0; i<teamsize; i++){
+      temp_sub[i] = nh.subscribe<std_msgs::Float32MultiArray>(belief_topics_name_vector[i], 1, boost::bind(&master_belief_callback, _1));
+  }
+    //resize belief_matrix according to dimension and teamsize
+    belief_matrix.resize(teamsize* dimension);
+
+    //fill belief_matrix initially with 0.5
+    for(int i=0; i<teamsize; i++){
+        std::fill(belief_matrix.begin(), belief_matrix.end(), 0.5);
+    }
+
+    //Publish data to "results"
   results_pub = nh.advertise<std_msgs::Int16MultiArray>("results", 100);
   
 #if EXTENDED_STAGE  
@@ -782,7 +867,9 @@ int main(int argc, char** argv){  //pass TEAMSIZE GRAPH ALGORITHM
   
   nh.setParam("/simulation_running", "true");
   nh.setParam("/simulation_abort", "false");
-  
+  nh.setParam("/graph_dimension", (int)dimension);
+  nh.setParam("/TEAMSIZE", (int)teamsize);
+
   if(ros::service::exists("/GotoStartPosSrv", false)){ //see if service has been advertised or not
        goto_start_pos = true;  //if service exists: robots need to be sent to starting positions
        ROS_INFO("/GotoStartPosSrv is advertised. Robots will be sent to starting positions.");
