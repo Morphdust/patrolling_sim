@@ -108,6 +108,9 @@ protected:
 
     ros::Publisher beliefs_pub;
     std::vector<ros::Publisher> belief_publisher;
+    std::vector<ros::Subscriber> belief_subscriber;
+    std::vector<std::vector<float>> swarm_beliefs;
+    std::vector<std::string> belief_topics_vector;
 
     ros::Subscriber beliefs_sub;
     ros::Subscriber second_belief_sub;
@@ -177,7 +180,7 @@ public:
     void pub_beliefs(std::vector<float>& belief_states, int robot_id);
 
     void call_subscriber(std::vector<float>& agent_belief, int ID_ROBOT);
-    void belief_topic_CB(const std_msgs::Float32MultiArray::ConstPtr& msg);
+    void belief_topic_CB(const std_msgs::Float32MultiArray::ConstPtr& msg, const std::string& topic);
     void personal_belief_topic_CB(const std_msgs::Float32MultiArray::ConstPtr& msg);
     void second_belief_get(int second_robot_ID);
     void second_belief_CB(const std_msgs::Float32MultiArray::ConstPtr& msg);

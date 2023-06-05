@@ -225,26 +225,26 @@ void PatrolAgent::init(int argc, char** argv) {
     }
 
     //creates vector of topic names -- includes robot's OWN ID, we want to subscribe to it to get updates from other agents that initiate the pairwise comparison
-    vector<string> belief_topics_vector(32, "");
     char topic_name[40];
-
     for(int i=0; i < TEAMSIZE; i++){
         sprintf(topic_name, "robot_%d/belief_state", i);
-        belief_topics_vector[i] = topic_name;
+        belief_topics_vector.push_back(topic_name);
     }
 
-    //Publisher for belief states
+    //Resize swarm belief vector of vectors
+    std::vector<float> single_agent_belief(dimension);
+    for(int i=0; i<TEAMSIZE; i++){
+        swarm_beliefs.push_back(single_agent_belief);
+    }
+
+    //Publisher and subscriber for belief states
     belief_publisher.resize(TEAMSIZE);
+    belief_subscriber.resize(TEAMSIZE);
 
     for(int i=0; i<TEAMSIZE; i++){
         belief_publisher[i] = nh.advertise<std_msgs::Float32MultiArray>(belief_topics_vector[i], 1, true);
+        belief_subscriber[i] = nh.subscribe<std_msgs::Float32MultiArray>(belief_topics_vector[i], 1, boost::bind(&PatrolAgent::belief_topic_CB, this, _1, belief_topics_vector[i]));
     }
-
-    sprintf(topic_name, "robot_%d/belief_state", ID_ROBOT);
-
-    //Specific callback function for agent's own topic
-    personal_belief_subscriber = nh.subscribe<std_msgs::Float32MultiArray>(topic_name, 1, boost::bind(&PatrolAgent::personal_belief_topic_CB, this, _1));
-
     //Service client for anomaly node
     anomaly_client = nh.serviceClient<patrolling_sim::anomaly_service>("anomaly_service");
 
@@ -1070,13 +1070,18 @@ void PatrolAgent::second_belief_CB(const std_msgs::Float32MultiArray::ConstPtr& 
 }
 
 /**
- * Callback function for agent's OWN belief topic
- * Takes data from topic and updates local belief_states
- * @param msg Reference to topic data
+ * Callback function for topics, takes message of new belief and topic name
+ * Saves data to agent's belief based on topic name
+ * @param msg New belief data
+ * @param topic Topic that caused callback
  */
-void PatrolAgent::personal_belief_topic_CB(const std_msgs::Float32MultiArray::ConstPtr& msg){
-    for(int i=0; i < dimension ; i++){
-        belief_states[i] = msg->data[i];
+void PatrolAgent::belief_topic_CB(const std_msgs::Float32MultiArray::ConstPtr& msg, const std::string& topic) {
+    for (int i = 0; i < belief_topics_vector.size(); i++){
+        if(topic == belief_topics_vector[i]){
+            for(int j=0; j<dimension; j++){
+                swarm_beliefs[i][j] = msg->data[j];
+            }
+        }
     }
 }
 
