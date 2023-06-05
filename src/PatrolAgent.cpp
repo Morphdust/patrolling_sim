@@ -95,13 +95,9 @@ void PatrolAgent::init(int argc, char** argv) {
     //Get the Graph info from the Graph File
     GetGraphInfo(vertex_web, dimension, graph_file.c_str());
 
-    //Initialise belief states
-    belief_states.resize(dimension);
-    second_agent_belief_states.resize(dimension);
-    std::fill(belief_states.begin(), belief_states.end(), 0.5);
     uint nedges = GetNumberEdges(vertex_web,dimension);
     
-    printf("Loaded graph %s with %d nodes and %d edges\n",mapname.c_str(),dimension,nedges);
+    printf("Loaded penis graph %s with %d nodes and %d edges\n",mapname.c_str(),dimension,nedges);
 
 #if 0
     /* Output Graph Data */   
@@ -224,17 +220,27 @@ void PatrolAgent::init(int argc, char** argv) {
         communication_history[i] = ros::Time::now().toSec();
     }
 
+    //Initialise belief states
+    //Resize swarm belief vector of vectors
+    std::vector<float> single_agent_belief(dimension);
+    for(int i=0; i<TEAMSIZE; i++){
+        swarm_beliefs.push_back(single_agent_belief);
+    }
+    ROS_INFO("I'm happy");
+    //Initialise own agent's belief to 0.5
+    std::vector<float> robot_belief(dimension);
+    std::fill(robot_belief.begin(), robot_belief.end(), 0.5);
+    ROS_INFO("I filled");
+    for(int i=0; i<dimension; i++){
+        swarm_beliefs[ID_ROBOT][i] = robot_belief[i];
+    }
+    ROS_INFO("I finished filling her up");
+
     //creates vector of topic names -- includes robot's OWN ID, we want to subscribe to it to get updates from other agents that initiate the pairwise comparison
     char topic_name[40];
     for(int i=0; i < TEAMSIZE; i++){
         sprintf(topic_name, "robot_%d/belief_state", i);
         belief_topics_vector.push_back(topic_name);
-    }
-
-    //Resize swarm belief vector of vectors
-    std::vector<float> single_agent_belief(dimension);
-    for(int i=0; i<TEAMSIZE; i++){
-        swarm_beliefs.push_back(single_agent_belief);
     }
 
     //Publisher and subscriber for belief states
@@ -1019,26 +1025,14 @@ bool PatrolAgent::check_comparison_range(){
                 time_delta = now - communication_history[second_robot];
                 if(time_delta >= communication_period){
                     ROS_INFO("I'm going to communicate!");
-                    //subscribes to second_agent topic, sets received_second_belief to be false
-                    //wait for message to be received
-                    PatrolAgent::second_belief_get(second_robot);
-                    while(!received_second_belief){
-                        //PatrolAgent::second_belief_get(second_robot);
 
-                        ros::Rate loop_rate(2); //2 sec
-                        loop_rate.sleep();
-                        ros::spinOnce();
-
-                        ROS_INFO("Waiting for belief message to be received");
-
-                    }
-                    three_val_pairwise_comp(belief_states, second_agent_belief_states);
+                    three_val_pairwise_comp(swarm_beliefs[ID_ROBOT], swarm_beliefs[second_robot]);
 
                     ROS_INFO("Beliefs were exchanged and initiated by agents %d and %d", ID_ROBOT, second_robot);
                     now = ros::Time::now().toSec();
                     communication_history[second_robot] = now;
-                    pub_beliefs(belief_states, ID_ROBOT);
-                    pub_beliefs(belief_states, second_robot);
+                    pub_beliefs(swarm_beliefs[ID_ROBOT], ID_ROBOT);
+                    pub_beliefs(swarm_beliefs[second_robot], second_robot);
                     comparison_occurred = true;
                 }
             }
@@ -1047,27 +1041,6 @@ bool PatrolAgent::check_comparison_range(){
     return comparison_occurred;
 }
 
-/**
- * Callback function to take data from topic and copy it into second_agent_belief
- * @param msg Callback msg
- */
-void PatrolAgent::second_belief_get(int second_robot_ID){
-    char topic_name[40];
-    sprintf(topic_name, "robot_%d/belief_state", second_robot_ID);
-    ros::NodeHandle nh;
-
-    received_second_belief = false;     //set receive flag to be false before subscribing
-    second_belief_sub.shutdown();       //shut down previous subscriber before starting new one
-    second_belief_sub = nh.subscribe<std_msgs::Float32MultiArray>(topic_name, 1, boost::bind(&PatrolAgent::second_belief_CB, this, _1));
-    ros::spinOnce();
-}
-
-void PatrolAgent::second_belief_CB(const std_msgs::Float32MultiArray::ConstPtr& msg){
-    for(int i=0; i < dimension ; i++){
-        second_agent_belief_states = msg->data;
-    }
-    received_second_belief = true;
-}
 
 /**
  * Callback function for topics, takes message of new belief and topic name
@@ -1152,9 +1125,9 @@ void PatrolAgent::call_anomaly_service(int vertex_arrived){
             anomaly = "an";
         }
         ROS_INFO("I saw %s anomaly", anomaly.c_str());
-        belief_states[vertex_arrived] = srv.response.anomaly_status;
+        swarm_beliefs[ID_ROBOT][vertex_arrived] = srv.response.anomaly_status;
 
-        pub_beliefs(belief_states, ID_ROBOT);
+        pub_beliefs(swarm_beliefs[ID_ROBOT], ID_ROBOT);
     }
     else{
         ROS_ERROR("Failed to call service anomaly_node");
