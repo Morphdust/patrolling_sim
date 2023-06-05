@@ -1,0 +1,17 @@
+## Number of anomalies - can be zero for no anomaly, count index starts at 1
+## Assignment type - RANDOM = 0 | DETERMINED = 1 | EVEN = 2 | ODD = 3
+## Communication distance in meters (Integer value)
+## Communication period in seconds
+## Assignment time 1 - time in seconds at which anomaly 'appears',
+## Assignment time 2 - time in seconds at which second anomaly 'appears'
+## Assignment time N - time in seconds at which Nth anomaly 'appears'
+## Node placement 0
+## Node placement 1
+## ...
+## Node placement N
+1
+0
+5
+30
+50
+75
