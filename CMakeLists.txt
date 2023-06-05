@@ -59,7 +59,18 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
    FILES
    GoToStartPosSrv.srv
+   anomaly_service.srv
 )
+## Generate added messages and services with any dependencies listed here
+generate_messages(
+        DEPENDENCIES
+        std_msgs
+)
+## Add message_runtime
+catkin_package(CATKIN_DEPENDS
+        message_runtime
+        std_msgs
+        )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -68,11 +79,7 @@ add_service_files(
 #   Action2.action
 # )
 
-## Generate added messages and services with any dependencies listed here
- generate_messages(
-   DEPENDENCIES
-   std_msgs
- )
+
 
 ###################################
 ## catkin specific configuration ##
@@ -174,8 +181,11 @@ target_link_libraries(DTASSI PatrolAgent SSIPatrolAgent ${catkin_LIBRARIES})
 add_executable(DTASSIPart src/DTASSIPart_Agent.cpp)
 ## Specify libraries to link a library or executable target against
 target_link_libraries(DTASSIPart PatrolAgent SSIPatrolAgent ${catkin_LIBRARIES})
- 
- 
+
+## Declare a cpp executable
+add_executable(anomaly_node src/anomaly_node.cpp)
+## Specify libraries to link a library or executable target against
+target_link_libraries(anomaly_node PatrolAgent SSIPatrolAgent ${catkin_LIBRARIES})
 # Results and Monitor Node:
  
 ## Declare a cpp executable 

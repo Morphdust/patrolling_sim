@@ -56,7 +56,12 @@ using namespace std;
     return  log(x) * M_LOG2E;
 }*/
 
-
+/**
+ * @breif Returns random vertex as next goal
+ * @param current_vertex uint ID of current vertex
+ * @param vertex_web vertex Pointed to vertex web
+ * @return uint Random next vertex
+ */
 uint random (uint current_vertex, vertex *vertex_web){
 
   //number of neighbors of current vertex (number of existing possibilites)
@@ -92,10 +97,9 @@ uint conscientious_reactive (uint current_vertex, vertex *vertex_web, double *in
       
       //choose the one with maximum idleness:
       if (decision_table[i] > max_idleness){
-	max_idleness = decision_table[i];		//maximum idleness
-
-	hits=0;
-	possibilities[hits] = neighbors[i];
+          max_idleness = decision_table[i];		//maximum idleness
+          hits=0;
+          possibilities[hits] = neighbors[i];
 	
       }else if(decision_table[i] == max_idleness){
 	hits ++;
@@ -146,11 +150,11 @@ uint heuristic_conscientious_reactive (uint current_vertex, vertex *vertex_web, 
       neighbors[i] = vertex_web[current_vertex].id_neigh[i];		//neighbors table
 
       if (instantaneous_idleness [neighbors[i]] > max_idleness){
-	max_idleness = instantaneous_idleness [neighbors[i]];
+          max_idleness = instantaneous_idleness [neighbors[i]];
       }
       
       if (vertex_web[current_vertex].cost[i] > max_distance){
-	max_distance = vertex_web[current_vertex].cost[i];
+          max_distance = vertex_web[current_vertex].cost[i];
       }
       
       //printf ("idleness[%u] = %f\n",neighbors[i],instantaneous_idleness [neighbors[i]]);
@@ -224,7 +228,16 @@ uint heuristic_conscientious_reactive (uint current_vertex, vertex *vertex_web, 
   return next_vertex;
   
 }
-
+/**
+ *
+ * @param current_vertex Current vertex agent is at
+ * @param vertex_web Graph of network
+ * @param instantaneous_idleness Pointer to instantaneous_idleness object
+ * @param G1 double Gain 1 value
+ * @param G2 double Gain 2 value
+ * @param edge_min double Minimum edge transition value
+ * @return uint Next vertex according to GBS
+ */
 uint greedy_bayesian_strategy (uint current_vertex, vertex *vertex_web, double *instantaneous_idleness, double G1, double G2, double edge_min){
 
   //G1 = L
@@ -243,7 +256,7 @@ uint greedy_bayesian_strategy (uint current_vertex, vertex *vertex_web, double *
     uint i, hits=0;
     double max_pp= -1;
     double gain, exp_param, edge_weight;
-    double log_result = log (1.0/G1);
+    double log_result = log (1.0/G1); //G1=0.1
     
     for (i=0; i<num_neighs; i++){
       neighbors[i] = vertex_web[current_vertex].id_neigh[i];		//neighbors table
@@ -252,7 +265,7 @@ uint greedy_bayesian_strategy (uint current_vertex, vertex *vertex_web, double *
       if (edge_weight<edge_min) {edge_weight = edge_min;}	
       
       //printf("Edge cost = %d\n",vertex_web[current_vertex].cost[i]);    
-      gain = (instantaneous_idleness[neighbors[i]] / edge_weight);		//corresponding gain
+      gain = (instantaneous_idleness[neighbors[i]] / edge_weight);		//corresponding gain for neighbour's idleness / cost of transitioning there
       //printf("Gain = Inst Idleness / Edge Cost = %f / %f = %f\n", instantaneous_idleness [neighbors[i]],(double)vertex_web[current_vertex].cost[i],gain);
       
       if (gain < G2){
@@ -302,7 +315,16 @@ uint greedy_bayesian_strategy (uint current_vertex, vertex *vertex_web, double *
   return next_vertex;
 
 }
-
+/**
+ *
+ * @param current_vertex uint Current vertex agent is at
+ * @param vertex_web vertex Web of information
+ * @param instantaneous_idleness Global variable of instantaneous idleness
+ * @param G1
+ * @param G2
+ * @param edge_min
+ * @return
+ */
 uint stochastic_bayesian_strategy (uint current_vertex, vertex *vertex_web, double *instantaneous_idleness, double G1, double G2, double edge_min){
 
   //G1 = L
@@ -481,10 +503,21 @@ uint state_exchange_bayesian_strategy (uint current_vertex, vertex *vertex_web, 
   return next_vertex;
 
 }
-
+/**
+ * State Exchange Bayesian Strategy
+ * @param current_vertex Current vertex in question
+ * @param vertex_web Pointer to vertex web
+ * @param instantaneous_idleness Idleness of nodes
+ * @param tab_intention Table of intention of robots, where they intend to visit
+ * @param nr_robots Number of robots
+ * @param G1 Gain parameter 1
+ * @param G2 Gain parameter 2
+ * @param edge_min Minimum allowed edge weight
+ * @return ID of next vertex to visit
+ */
 uint stochastic_state_exchange_bayesian_strategy (uint current_vertex, vertex *vertex_web, double *instantaneous_idleness, int *tab_intention, int nr_robots, double G1, double G2, double edge_min){
 
-  //number of neighbors of current vertex (number of existing possibilites)
+  //number of neighbors of current vertex (number of existing possibilities)
   uint num_neighs = vertex_web[current_vertex].num_neigh;
   uint next_vertex;
   
@@ -560,12 +593,12 @@ uint stochastic_state_exchange_bayesian_strategy (uint current_vertex, vertex *v
 }
 /**
  *
- * @param source
- * @param destination
- * @param shortest_path
+ * @param source Source node
+ * @param destination Destination node
+ * @param shortest_path Pointer to shortest path variable
  * @param elem_s_path Number of elements in the saved shortest path. I.e. number of nodes in graph navigation from start to finish
  * @param vertex_web
- * @param dimension
+ * @param dimension Number of nodes in graph
  */
 void dijkstra( uint source, uint destination, int *shortest_path, uint &elem_s_path, vertex *vertex_web, uint dimension){
   
@@ -673,7 +706,14 @@ void dijkstra( uint source, uint destination, int *shortest_path, uint &elem_s_p
   
 }
 
-
+/**
+ * Checks if vertex 1 and vertex 2 are neighbours, returns ID of neighbour if true. Returns -1 if not neighbours
+ * @param vertex1 Vertex 1 in question
+ * @param vertex2 Vertex 2 in question
+ * @param vertex_web Pointer to web of vertices
+ * @param dimension Number of vertices
+ * @return -1 if the vertices are not neighbours
+ */
 int is_neigh(uint vertex1, uint vertex2, vertex *vertex_web, uint dimension){
   int i;
   
@@ -686,7 +726,16 @@ int is_neigh(uint vertex1, uint vertex2, vertex *vertex_web, uint dimension){
   return -1; //not neighbor
 }
 
-
+/**
+ *
+ * @param source Origin vertex
+ * @param destination Destination vertex
+ * @param shortest_path Pointer to the shortest path, array of int
+ * @param elem_s_path Number of elements in the saved shortest path. I.e. number of nodes in graph navigation from start to finish
+ * @param vertex_web
+ * @param new_costs
+ * @param dimension Number of nodes in graph
+ */
 void dijkstra_mcost( uint source, uint destination, int *shortest_path, uint &elem_s_path, vertex *vertex_web, double new_costs[][8], uint dimension){
   
   uint i,j,k,x;
@@ -730,7 +779,7 @@ void dijkstra_mcost( uint source, uint destination, int *shortest_path, uint &el
 	/* j has INDEX of the neighbor in tab_disjkstra */
 	/* k has index of the neighbor in the neighbor table of next_vertex */
 	
-	//Go to neihgobors;	
+	//Go to neighbours;
 	for(k=0; k<vertex_web[next_vertex].num_neigh; k++){
 	  
 		cont = false;
@@ -793,7 +842,15 @@ void dijkstra_mcost( uint source, uint destination, int *shortest_path, uint &el
   
 }
 
-
+/**
+ *
+ * @param current_vertex
+ * @param vertex_web
+ * @param instantaneous_idleness
+ * @param dimension
+ * @param path
+ * @return
+ */
 uint heuristic_pathfinder_conscientious_cognitive (uint current_vertex, vertex *vertex_web, double *instantaneous_idleness, uint dimension, uint *path){
   
 	  //Heuristic Decision (Considering ALL vertices of the graph and shortest path to them)
@@ -983,12 +1040,18 @@ uint heuristic_pathfinder_conscientious_cognitive (uint current_vertex, vertex *
   
 }
 
-//Check if an element belongs to a table
-bool pertence (int elemento, int *tab, int tam_tab){
+/**
+ * @brief Checks if element is in array
+ * @param element Element to be searched for
+ * @param tab Pointer to array
+ * @param tam_tab Number of elements to search through
+ * @return Returns true if it is found, false if not
+ */
+bool pertence(int element, int *tab, int tam_tab){
   
   for (int i=0; i<tam_tab; i++){
 	
-	if( tab[i] == elemento) {
+	if( tab[i] == element) {
 	  return true;
 	}
 	
@@ -997,6 +1060,13 @@ bool pertence (int elemento, int *tab, int tam_tab){
   return false;  
 }
 
+/**
+ * @brief Checks if element is in array, returns index position in array
+ * @param elemento Element to be searched for
+ * @param tab Pointer to array
+ * @param tam_tab Number of elements to search through
+ * @return Returns position of element in array
+ */
 int pertence_idx (int elemento, int *tab, int tam_tab){
   
   for (int i=0; i<tam_tab; i++){
@@ -1080,7 +1150,11 @@ bool UHC (vertex *vertex_web, int v1, int *caminho_principal, uint dimension) {
   return true;  
   
 }
-
+/**
+ * @brief Clears visited log
+ * @param vertex_web Pointer to web of vertices
+ * @param dimension Number of vertices in graph
+ */
 void clear_visited (vertex *vertex_web, uint dimension){ //LIMPA TODA A REDE DE NOS (NAO SO DA REGIAO)
   
   int i,j;
@@ -1201,7 +1275,7 @@ bool procurar_ciclo (vertex *vertex_web, uint dimension, int *caminho_principal,
 		  //if ( vertex_web[ult_elemento].visitado[i] == false && ( !pertence(vertex_web[ult_elemento].id_neigh[i], caminho_parcial, elem_cp) || vertex_web[ult_elemento].id_neigh[i] == origem) ){
 		  
 		  /*pode repetir vertices: na pratica so o vai fazer s este tiver 4 ou + vizinhos*/
-		  if ( vertex_web[ult_elemento].visited[i] == false){ 
+          if ( vertex_web[ult_elemento].visited[i] == false){
 			viz[k] = vertex_web[ult_elemento].id_neigh[i];
 			k++;
 		  }

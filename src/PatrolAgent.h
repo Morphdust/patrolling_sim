@@ -45,7 +45,7 @@
 #include <tf/transform_listener.h>
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/Int16MultiArray.h>
-
+#include <std_msgs/Float32MultiArray.h>
 
 #include "getgraph.h"
 
@@ -81,6 +81,7 @@ protected:
     bool end_simulation;
     int next_vertex;
     // uint backUpCounter;
+    ///Graph network object, array of 'vertex' objects of 'dimension' dimension
     vertex *vertex_web;
     double *instantaneous_idleness;  // local idleness
     double *last_visit;
@@ -89,6 +90,13 @@ protected:
     double goal_reached_wait, communication_delay, last_communication_delay_time, lost_message_rate;
     std::string initial_positions;
     int aborted_count, resend_goal_count;
+
+    std::vector<double> communication_history;
+    double communication_distance;
+    double communication_period;
+    std::vector<float> belief_states;
+    std::vector<float> second_agent_belief_states;
+    bool received_second_belief;
     
     MoveBaseClient *ac; // action client for reaching target goals
     
@@ -97,6 +105,15 @@ protected:
     ros::Subscriber results_sub;
     ros::Publisher results_pub;
     ros::Publisher cmd_vel_pub;
+
+    ros::Publisher beliefs_pub;
+    std::vector<ros::Publisher> belief_publisher;
+
+    ros::Subscriber beliefs_sub;
+    ros::Subscriber second_belief_sub;
+    ros::Subscriber personal_belief_subscriber;
+
+    ros::ServiceClient anomaly_client;
 
     
 public:
@@ -153,6 +170,19 @@ public:
     // Must be implemented by sub-classes
     virtual int compute_next_vertex() = 0;
 
+    //Belief exchange
+    bool check_comparison_range();
+    void three_val_pairwise_comp(std::vector<float>& first_agent_belief, std::vector<float>& second_agent_belief);
+    void get_agent_belief(uint robot_id);
+    void pub_beliefs(std::vector<float>& belief_states, int robot_id);
+
+    void call_subscriber(std::vector<float>& agent_belief, int ID_ROBOT);
+    void belief_topic_CB(const std_msgs::Float32MultiArray::ConstPtr& msg);
+    void personal_belief_topic_CB(const std_msgs::Float32MultiArray::ConstPtr& msg);
+    void second_belief_get(int second_robot_ID);
+    void second_belief_CB(const std_msgs::Float32MultiArray::ConstPtr& msg);
+
+    void call_anomaly_service(int vertex_arrived);
 };
 
 

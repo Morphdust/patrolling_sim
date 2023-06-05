@@ -160,5 +160,4 @@ void update_likelihood_new (reinforcement_learning RL, uint *node_count_table, d
 
 int learning_algorithm(uint current_vertex, vertex *vertex_web, double *instantaneous_idleness, double *avg_idleness, int *tab_intention, double *histogram, uint *source, uint *destination, uint hist_dimension, int nr_robots, int id_robot, uint *node_count, reinforcement_learning &RL);
 
-
- 
+void three_val_pairwise_comp(std::vector<double>& first_agent_belief, std::vector<double>& second_agent_belief, uint dimension);

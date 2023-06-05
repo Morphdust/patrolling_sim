@@ -70,7 +70,10 @@ public:
 };
 
 
-
+/**
+ * Initialising function for parameters and functions
+ * Hardcodes G1 & G2 values from code if using grip, example or cumberland graph
+ */
 void SBS_Agent::init(int argc, char** argv) {
   
   PatrolAgent::init(argc,argv);
@@ -114,7 +117,11 @@ void SBS_Agent::init(int argc, char** argv) {
   printf("G1 = %f, G2 = %f\n", G1, G2); 
 }
 
-// Executed at any cycle when goal is not reached
+/**
+ * Processes events of robot arriving at a vertex or deciding to travel to another vertex.
+ * Updates global variables instantaneous_idleness and tab_intention
+ * Executed at any cycle when goal is not reached
+ */
 void SBS_Agent::processEvents() {
       
     if (arrived && NUMBER_OF_ROBOTS>1){ //a different robot arrived at a vertex: update idleness table and keep track of last vertices positions of other robots.
@@ -137,7 +144,10 @@ void SBS_Agent::processEvents() {
     
     ros::spinOnce();
 }
-
+/**
+ * Calls and returns value from state_exchange_bayesian_strategy
+ * @return Output of SEBS with 8 arguments, gives next vertex ID as int
+ */
 int SBS_Agent::compute_next_vertex() {
     return stochastic_bayesian_strategy(current_vertex, vertex_web, instantaneous_idleness, G1, G2, edge_min);
 }

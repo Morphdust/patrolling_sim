@@ -73,7 +73,10 @@ public:
     virtual void receive_results();    
 };
 
-
+/**
+ * Initialising function for parameters and functions
+ * Hardcodes G1 & G2 values from code if using grip, example or cumberland graph
+ */
 void S_SEBS_Agent::init(int argc, char** argv) {
   
   PatrolAgent::init(argc,argv);
@@ -132,7 +135,11 @@ void S_SEBS_Agent::init(int argc, char** argv) {
   
 }
 
-// Executed at any cycle when goal is not reached
+/**
+ * Processes events of robot arriving at a vertex or deciding to travel to another vertex.
+ * Updates global variables instantaneous_idleness and tab_intention
+ * Executed at any cycle when goal is not reached
+ */
 void S_SEBS_Agent::processEvents() {
     
     if (arrived && NUMBER_OF_ROBOTS>1){ //a different robot arrived at a vertex: update idleness table and keep track of last vertices positions of other robots.
@@ -154,8 +161,9 @@ void S_SEBS_Agent::processEvents() {
         
         arrived = false;
     }
-
-    if (intention && NUMBER_OF_ROBOTS>1) {    
+    //only use table of intention if there is more than 1 robot
+    if (intention && NUMBER_OF_ROBOTS>1) {
+        //table of intention, for the robot with the intention, assign the vertex that it is intending to visit
         tab_intention[robot_intention] = vertex_intention;
         //printf("tab_intention[ID=%d]=%d\n",robot_intention,tab_intention[robot_intention]);
         intention = false;
@@ -163,11 +171,17 @@ void S_SEBS_Agent::processEvents() {
     // ros::spinOnce();    
 }
 
+/**
+ * Calls and returns value from stochastic_state_exchange_bayesian_strategy
+ * @return Output of S_SEBS with 8 arguments, gives vertex ID
+ */
 int S_SEBS_Agent::compute_next_vertex() {
     return stochastic_state_exchange_bayesian_strategy(current_vertex, vertex_web, instantaneous_idleness, tab_intention, NUMBER_OF_ROBOTS, G1, G2, edge_min);
 }
 
-
+/**
+ * Creates S_SEBS_MSG_TYPE message and publishes via do_send_message function
+ */
 void S_SEBS_Agent::send_results() {   
     int value = ID_ROBOT;
     if (value==-1){value=0;}
@@ -181,6 +195,9 @@ void S_SEBS_Agent::send_results() {
     do_send_message(msg);
 }
 
+/**
+ * Pulls local variables from global variables
+ */
 void S_SEBS_Agent::receive_results() {
   
     std::vector<int>::const_iterator it = vresults.begin();
@@ -189,10 +206,11 @@ void S_SEBS_Agent::receive_results() {
     
     int value = ID_ROBOT;
     if (value==-1){value=0;}
-    
+    //if the ID of the sender robot is the same as receiver, OR the message type is not of S_SEBS_MSG_TYPE
   	if ((id_sender==value) || (msg_type!=S_SEBS_MSG_TYPE)) 
     	return;
-        
+
+    //pull local variables from global variables
     robot_arrived = vresults[0];
     vertex_arrived = vresults[2];
     arrived = true;
@@ -209,5 +227,3 @@ int main(int argc, char** argv) {
 
     return 0; 
 }
-
-

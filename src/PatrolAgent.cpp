@@ -784,7 +784,7 @@ void PatrolAgent::do_interference_behavior()
 void PatrolAgent::send_positions()
 {
     //Publish Position to common node:
-    nav_msgs::Odometry msg; 
+    nav_msgs::Odometry msg;
 
     int idx = ID_ROBOT;
 

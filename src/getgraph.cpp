@@ -142,7 +142,12 @@ uint IdentifyVertex (vertex *vertex_web, uint size, double x, double y){
   }
   return v;  
 }
-
+/**
+ * Returns number of edge connections of network
+ * @param vertex_web Graph network object
+ * @param dimension Number of nodes
+ * @return Number of transitions between nodes
+ */
 uint GetNumberEdges (vertex *vertex_web, uint dimension){
   
   uint result = 0;

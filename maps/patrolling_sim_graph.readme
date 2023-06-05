@@ -1,0 +1,62 @@
+#First 6 lines is map meta data
+#In following order from line 1:
+
+Number of nodes
+Pixel dimension X
+Pixel dimension Y
+Scale factor
+Origin X
+Origin Y
+
+#Following blocks are the graph data
+Node ID
+X Coordinate of node
+Y Coordinate of node
+Number of neighbours
+#The following is repeated for number of neighbours
+ID of neighbour node
+Compass heading from current node to neighbour
+Unit distance along path / weighting of transition
+
+
+############################################
+########## NODE GRAPH OF TRIANGLE ##########
+############         2          ############
+############          \         ############
+############       0---1        ############
+############ EXAMPLE GRAPH FILE ############
+3
+500
+500
+0.075
+0
+0
+
+0
+100
+100
+1
+1
+E
+100
+
+1
+200
+100
+2
+0
+W
+100
+2
+NW
+111
+
+2
+150
+200
+1
+1
+SE
+111
+
+

@@ -47,6 +47,17 @@
 
 typedef unsigned int uint;
 
+/**
+ * @brief Structure for vertex
+ * @param id uint ID of node
+ * @param num_neigh uint Number of neighbours
+ * @param x float x coordinate
+ * @param y float y coordinate
+ * @param id_neigh uint[8] IDs of neighbours
+ * @param cost uint[8] Cost of transition to neighbours
+ * @param visited bool[8] Visited log for neighbours
+ * @param dir char[8][3] Heading for neighbours
+ */
 typedef struct {
   uint id, num_neigh;
   float x, y; 		//pass these attributes in meters

@@ -1,0 +1,4 @@
+int64 robot_ID
+int64 graph_node_ID
+---
+bool anomaly_status

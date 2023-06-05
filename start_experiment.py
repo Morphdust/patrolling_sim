@@ -192,8 +192,8 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
         gcmd = gcmd + ' --tab -e "'+cmd+'" '
     gcmd = gcmd + '&'
     if (TERM == 'gnome-terminal'):
-	#print gcmd
-	    os.system(gcmd)
+    #print gcmd
+        os.system(gcmd)
     os.system('sleep 5')    
         
     # Start patrol behaviors
@@ -202,22 +202,25 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
         print("Run patrol robot ",i)
         if (ALG_SHORT=='MSP'):
             cmd = 'bash -c \'rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+' MSP/'+MAP+'/'+MAP+'_'+str(NROBOTS)+'_'+str(i)+' '+'\''
-        elif (ALG_SHORT=='GBS' or ALG_SHORT=='SEBS' or ALG_SHORT=='CBLS'):
+        elif (ALG_SHORT=='GBS' or ALG_SHORT=='SBS' or ALG_SHORT=='SEBS' or ALG_SHORT=='S_SEBS' or ALG_SHORT=='CBLS'):
             cmd = 'bash -c \'rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+' '+str(NROBOTS)+'\''
         else:
             now = datetime.datetime.now()
             dateString = now.strftime("%Y-%m-%d-%H:%M")
             #cmd = 'bash -c \'rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+' > logs/'+ALG+'-'+dateString+'-robot'+str(i)+'.log \''
-            cmd = 'bash -c \'rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+'\''
+            #cmd = 'bash -c \'rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+'\''
+            cmd = 'gnome-terminal -- rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+ ' '
         print(cmd)
         if (TERM == 'xterm'):
-	        os.system('xterm -e  "'+cmd+'" &')
+            os.system('xterm -e  "'+cmd+'" &')
         os.system('sleep 1')
         gcmd = gcmd + ' --tab -e "'+cmd+'" '
     gcmd = gcmd + '&'
     if (TERM == 'gnome-terminal'):
       #print gcmd
         os.system(gcmd)
+    # anomaly node starting here
+    os.system("gnome-terminal -- rosrun patrolling_sim anomaly_node")
     os.system('sleep '+NROBOTS)
 
     print("Stage simulator footprints and speedup")
