@@ -97,7 +97,7 @@ void PatrolAgent::init(int argc, char** argv) {
 
     uint nedges = GetNumberEdges(vertex_web,dimension);
     
-    printf("Loaded penis graph %s with %d nodes and %d edges\n",mapname.c_str(),dimension,nedges);
+    printf("Loaded graph %s with %d nodes and %d edges\n",mapname.c_str(),dimension,nedges);
 
 #if 0
     /* Output Graph Data */   
@@ -226,15 +226,12 @@ void PatrolAgent::init(int argc, char** argv) {
     for(int i=0; i<TEAMSIZE; i++){
         swarm_beliefs.push_back(single_agent_belief);
     }
-    ROS_INFO("I'm happy");
     //Initialise own agent's belief to 0.5
     std::vector<float> robot_belief(dimension);
     std::fill(robot_belief.begin(), robot_belief.end(), 0.5);
-    ROS_INFO("I filled");
     for(int i=0; i<dimension; i++){
         swarm_beliefs[ID_ROBOT][i] = robot_belief[i];
     }
-    ROS_INFO("I finished filling her up");
 
     //creates vector of topic names -- includes robot's OWN ID, we want to subscribe to it to get updates from other agents that initiate the pairwise comparison
     char topic_name[40];
