@@ -43,15 +43,15 @@ else
 fi
 
 source /opt/ros/noetic/setup.bash
-source /root/catkin_ws/devel/setup.bash
+source ~/catkin_ws/devel/setup.bash
 
-Xvfb :1 -screen 0 1024x768x16 &
-export DISPLAY=:1
+#Xvfb :1 -screen 0 1024x768x16 &
+#export DISPLAY=:1
 for (( c=1; c<=MULTIPLE; c++ ))
 do 
   #export DISPLAY=:1
    echo "Beginning experiment $c "
    date
-   /root/catkin_ws/src/patrolling_sim/start_experiment_screen.py $MAP $NROBOTS $INITPOS $ALG $LOC $NAV $GWAIT $COMMDELAY $TERM $TIMEOUT $CUSTOM_STAGE $SPEEDUP
+   ~/catkin_ws/src/patrolling_sim/start_experiment_screen.py $MAP $NROBOTS $INITPOS $ALG $LOC $NAV $GWAIT $COMMDELAY $TERM $TIMEOUT $CUSTOM_STAGE $SPEEDUP
    echo "Finished experiment $c"
 done
