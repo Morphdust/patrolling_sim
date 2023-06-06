@@ -202,11 +202,13 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
     #if (TERM == 'xterm'):
     #    roscore_cmd = 'xterm -e roscore &'
     #else:
-    roscore_cmd = 'screen -S roscore_window -L -Logfile /root/catkin_ws/roscore_log -d -m rosmaster --core'
+    roscore_cmd = 'screen -S roscore_window -L -Logfile ~/catkin_ws/roscore_log -d -m rosmaster --core'
 
     print(roscore_cmd)
 
-    os.system('screen -S roscore_window -L -Logfile /root/catkin_ws/roscore_log -d -m rosmaster --core')
+    catkin_ws_loc = f"{dirname}/../../"
+
+    os.system('screen -S roscore_window -L -Logfile ~/catkin_ws/roscore_log -d -m rosmaster --core')
     os.system('sleep 3')
     os.system('rosparam set /use_sim_time true')
     os.system("rosparam set /goal_reached_wait "+GWAIT)
@@ -233,8 +235,8 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
         os.system('xterm -e  "'+cmd_monitor+'" &') 
         os.system('xterm -e  "'+cmd_stage+'" &')
     else: 
-        os.system('screen -S monitor_window -L -Logfile /root/catkin_ws/monitor_log -d -m  '+cmd_monitor+' ')
-        os.system('screen -S stage_window -L -Logfile /root/catkin_ws/stage_log -d -m  '+cmd_stage+' ')
+        os.system('screen -S monitor_window -L -Logfile ~/catkin_ws/monitor_log -d -m  '+cmd_monitor+' ')
+        os.system('screen -S stage_window -L -Logfile ~/catkin_ws/stage_log -d -m  '+cmd_stage+' ')
     
     os.system('sleep 3')
     
