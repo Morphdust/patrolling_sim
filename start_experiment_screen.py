@@ -12,8 +12,9 @@ from tkinter import filedialog
 import numpy as np
 import sys, time, os, glob, shutil
 from math import atan2, degrees, radians
-import datetime
 import rospkg
+import datetime
+from datetime import timedelta
 
 import os
 dirname = rospkg.RosPack().get_path('patrolling_sim')
@@ -101,7 +102,8 @@ def getSimulationRunning():
 
 def save_exp_params_file(params_dict, anomaly_loc):
     now = datetime.datetime.now()
-    time_string = now.strftime("%Y%m%d_%H%M%S")
+    updated_time = now + timedelta(seconds=5)
+    time_string = updated_time.strftime("%Y%m%d_%H%M%S")
     alg = params_dict["ALG"]
     map_dir = params_dict["MAP"] + '_' + params_dict["NROBOTS"]
 
@@ -202,13 +204,14 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
     #if (TERM == 'xterm'):
     #    roscore_cmd = 'xterm -e roscore &'
     #else:
-    roscore_cmd = 'screen -S roscore_window -L -Logfile ~/catkin_ws/roscore_log -d -m rosmaster --core'
+    if not os.path.exists("~/catkin_ws/logs/"):
+        os.mkdir("~/catkin_ws/logs/")
+    roscore_cmd = 'screen -S roscore_window -L -Logfile ~/catkin_ws/logs/roscore_log -d -m rosmaster --core'
 
     print(roscore_cmd)
 
-    catkin_ws_loc = f"{dirname}/../../"
-
-    os.system('screen -S roscore_window -L -Logfile ~/catkin_ws/roscore_log -d -m rosmaster --core')
+    os.system(roscore_cmd)
+    #os.system('screen -S roscore_window -L -Logfile ~/catkin_ws/logs/roscore_log -d -m roscore')
     os.system('sleep 3')
     os.system('rosparam set /use_sim_time true')
     os.system("rosparam set /goal_reached_wait "+GWAIT)
@@ -222,7 +225,7 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
     print(cmd)
     os.system('sleep 1')
 
-    cmd_monitor = 'rosrun patrolling_sim monitor '+MAP+' '+ALG_SHORT+' '+NROBOTS  
+    cmd_monitor = 'rosrun patrolling_sim monitor '+MAP+' '+ALG_SHORT+' '+NROBOTS
     custom_stage = ''
     if (CUSTOM_STAGE=="true"):
       custom_stage = ' custom_stage:=true'
@@ -234,9 +237,13 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
     if (TERM == 'xterm'):
         os.system('xterm -e  "'+cmd_monitor+'" &') 
         os.system('xterm -e  "'+cmd_stage+'" &')
-    else: 
-        os.system('screen -S monitor_window -L -Logfile ~/catkin_ws/monitor_log -d -m  '+cmd_monitor+' ')
-        os.system('screen -S stage_window -L -Logfile ~/catkin_ws/stage_log -d -m  '+cmd_stage+' ')
+    else:
+        print("I'm about to start monitor")
+        os.system('source ~/catkin_ws/devel/setup.bash')
+        print('screen -S monitor_window -L -Logfile ~/catkin_ws/logs/monitor_log -d -m '+cmd_monitor+' ')
+        os.system('screen -S monitor_window -L -Logfile ~/catkin_ws/logs/monitor_log -d -m  '+cmd_monitor+' ')
+        #os.system('screen -S monitor_window -L -Logfile ~/catkin_ws/monitor_log -d -m  '+cmd_monitor+' ')
+        os.system('screen -S stage_window -L -Logfile ~/catkin_ws/logs/stage_log -d -m  '+cmd_stage+' ')
     
     os.system('sleep 3')
     
@@ -279,7 +286,7 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
         elif (ALG_SHORT=='GBS' or ALG_SHORT=='SBS' or ALG_SHORT=='SEBS' or ALG_SHORT=='S_SEBS' or ALG_SHORT=='CBLS'):
             cmd = 'bash -c \'rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+' '+str(NROBOTS)+'\''
         else:
-            now = datetime.datetime.now()
+            now = datetime.now()
             dateString = now.strftime("%Y-%m-%d-%H:%M")
             #cmd = 'bash -c \'rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+' > logs/'+ALG+'-'+dateString+'-robot'+str(i)+'.log \''
             #cmd = 'bash -c \'rosrun patrolling_sim '+ALG+' __name:=patrol_robot'+str(i)+' '+MAP+' '+str(i)+'\''
@@ -292,7 +299,7 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
 
 
     # anomaly node starting here
-    os.system('screen -S anomaly_node -d -m rosrun patrolling_sim anomaly_node')
+    os.system('screen -S anomaly_node -L -Logfile ~/catkin_ws/logs/anomaly_log -d -m rosrun patrolling_sim anomaly_node')
     #os.system("gnome-terminal -- rosrun patrolling_sim anomaly_node")
     os.system('sleep '+NROBOTS)
 
