@@ -12,8 +12,8 @@ sleep 1
 printf "1..."
 sleep 1
 kill $(ps aux | grep ros | grep -v grep | awk '{print $2}')
+sleep 2
 screen -X -S stage_window quit
-screen -X -S roscore_window quit
 sleep 1
 printf "Experiment terminated!\n"
 
