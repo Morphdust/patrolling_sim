@@ -204,9 +204,9 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
     #if (TERM == 'xterm'):
     #    roscore_cmd = 'xterm -e roscore &'
     #else:
-    log_dir = os.path.expanduser('~/catkin_ws/logs')
-    if not os.path.exists(log_dir):
-        os.mkdir(log_dir)
+    logs_dir = os.path.expanduser('~/catkin_ws/logs')
+    if not os.path.exists(logs_dir):
+        os.mkdir(logs_dir)
     roscore_cmd = 'screen -S roscore_window -L -Logfile ~/catkin_ws/logs/roscore_log -d -m rosmaster --core'
 
     print(roscore_cmd)
