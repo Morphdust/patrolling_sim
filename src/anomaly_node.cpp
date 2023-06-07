@@ -1,6 +1,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <random>
+#include <fstream>
+#include <iostream>
 #include "ros/ros.h"
 #include <ros/package.h>
 #include <std_msgs/Float32MultiArray.h>
@@ -24,7 +27,26 @@ int anomaly_assignment_type, communication_distance, communication_period;
 string anomaly_param_name;
 
 const std::string PS_path = ros::package::getPath("patrolling_sim");
-string local_anomaly_dir = "/params/anomaly/anomaly_params.txt";
+string anomaly_param_dir = "/params/anomaly/";
+string anomaly_filename = "anomaly_params.txt";
+string local_weighting_filename = "graph_weightings.txt";
+
+uniform_real_distribution<double> dist(0.0, 1.0);
+vector<float> weighting_vector_from_file;
+bool NOISY = true;
+
+
+float measure_noisy_node(unsigned node_ID){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    double randomNum = dist(gen);
+
+    bool noise = (randomNum < weighting_vector_from_file[node_ID]) ? 1 : 0;
+    bool measurement = anomaly_presence_vector[node_ID] ^ noise;
+
+    return measurement;
+}
+
 
 bool anomaly_presence(patrolling_sim::anomaly_service::Request  &req, patrolling_sim::anomaly_service::Response &res){
 
@@ -32,27 +54,67 @@ bool anomaly_presence(patrolling_sim::anomaly_service::Request  &req, patrolling
         time_now = ros::Time::now().toSec();
 
         if ( time_now >= anomaly_time_vector[i]){
-            res.anomaly_status = anomaly_presence_vector[req.graph_node_ID];
+            if(NOISY){
+                res.anomaly_status = measure_noisy_node(req.graph_node_ID);
+            }
+            else
+            {
+                res.anomaly_status = anomaly_presence_vector[req.graph_node_ID];
+            }
         }
     }
 
-
    return true;
+}
+
+void read_noise_weightings(string weighting_filename_dir){
+    //open file at directory
+    //pull in each successive line into the vector of floats - weighting_vector_from_file
+    //return nothing
+    std::cout << "passed argument is: " << weighting_filename_dir << endl;
+    std::ifstream file(weighting_filename_dir);
+
+    if (!file) {
+        ROS_INFO("Cannot open filename %s", anomaly_param_name.c_str());
+        ROS_BREAK();
+    }
+    else{
+        ROS_INFO("Anomaly weightings file opened; retrieving weights.\n");
+    }
+    std::string line;
+    std::getline(file, line);  // Ignore the first two lines
+    std::getline(file, line);  // Ignore the first two lines
+    int count = 0;
+    while (std::getline(file, line) && count < dimension) {
+        float value;
+        try {
+            value = std::stof(line);
+            weighting_vector_from_file.push_back(value);
+            count++;
+        } catch (const std::exception& e) {
+            std::cout << "Invalid float value on line: " << line << std::endl;
+        }
+    }
+    file.close();
+    std::cout << "Weights from file are: " << "\n";
+    for(float value : weighting_vector_from_file) {
+        std::cout << value << std::endl;
+    }
 }
 
 void anomaly_node_init( int dimension ) {
      int random_node = 0;
      bool anomaly_written = false;
-    srand(time(NULL));
+     srand(time(NULL));
 
-    //create anomaly_presence_vector size from dimension
+     //create anomaly_presence_vector size from dimension
      anomaly_presence_vector.resize(dimension);
 
      //fill anomaly_presence_vector with false
      std::fill(anomaly_presence_vector.begin(), anomaly_presence_vector.end(), false);
 
      //location and filename
-     anomaly_param_name = PS_path + local_anomaly_dir;
+     anomaly_param_name = PS_path + anomaly_param_dir + anomaly_filename;
      ROS_INFO("anomaly location is %s", anomaly_param_name.c_str());
      FILE *file;
      file = fopen(anomaly_param_name.c_str(), "r");
@@ -114,6 +176,7 @@ void anomaly_node_init( int dimension ) {
                  ROS_INFO("Anomaly placed at node %d",placement_from_file);
              }
          }
+         read_noise_weightings(PS_path+anomaly_param_dir+local_weighting_filename);
 
      if (anomaly_assignment_type == RANDOM) {
          for (int i = 0; i < number_anomalies; i++) {
@@ -134,12 +197,6 @@ void anomaly_node_init( int dimension ) {
 
      fclose(file);
 
-        if (anomaly_assignment_type == EVEN) {
-             //TODO create even assignment
-        }
-        if (anomaly_assignment_type == ODD) {
-             //TODO create odd assignment
-        }
      }
      patrolling_sim::anomaly_service service_object;
      ros::service::call("/anomaly_service", service_object);
