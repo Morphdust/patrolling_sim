@@ -9,7 +9,9 @@ maps/*/robots.inc
 rostime.txt
 simrun.txt
 experiments.txt
-
+scratch_22
+scratch_23
+node_random_num_gen
 /cmake-build-debug/CMakeFiles/3.25.2/CompilerIdC/a.out
 /cmake-build-debug/CMakeFiles/3.25.2/CompilerIdCXX/a.out
 /cmake-build-debug/.cmake/api/v1/query/cache-v2
