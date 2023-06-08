@@ -1,0 +1,9 @@
+### Weightings for each agent's noise ###
+0.05
+0.05
+0.05
+0.05
+0.05
+0.05
+0.05
+0.05

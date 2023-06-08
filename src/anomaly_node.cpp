@@ -30,21 +30,29 @@ const std::string PS_path = ros::package::getPath("patrolling_sim");
 string anomaly_param_dir = "/params/anomaly/";
 string anomaly_filename = "anomaly_params.txt";
 string local_weighting_filename = "graph_weightings.txt";
+string robot_weight_filename = "agent_weightings.txt";
 
-uniform_real_distribution<double> dist(0.0, 1.0);
-vector<float> weighting_vector_from_file;
+uniform_real_distribution<double> real_dist(0.0, 1.0);
+
+vector<float> world_weight_from_file;
+vector<float> robot_weight_from_file;
 bool NOISY = true;
 
 
-float measure_noisy_node(unsigned node_ID){
+float measure_noisy_node(unsigned node_ID, unsigned robot_ID){
     std::random_device rd;
-    std::mt19937 gen(rd());
-    double randomNum = dist(gen);
+    std::mt19937 world_gen(rd());
+    std::mt19937 robot_gen(rd());
+    double randomNum = real_dist(world_gen);
 
-    bool noise = (randomNum < weighting_vector_from_file[node_ID]) ? 1 : 0;
+    bool noise = (randomNum < world_weight_from_file[node_ID]) ? 1 : 0;
     bool measurement = anomaly_presence_vector[node_ID] ^ noise;
 
-    return measurement;
+    randomNum = real_dist(robot_gen);
+    bool robot_noise = (randomNum < robot_weight_from_file[robot_ID]) ? 1 : 0;
+
+    bool noisy_measurement = measurement ^ robot_noise;
+    return noisy_measurement;
 }
 
 
@@ -55,7 +63,7 @@ bool anomaly_presence(patrolling_sim::anomaly_service::Request  &req, patrolling
 
         if ( time_now >= anomaly_time_vector[i]){
             if(NOISY){
-                res.anomaly_status = measure_noisy_node(req.graph_node_ID);
+                res.anomaly_status = measure_noisy_node(req.graph_node_ID, req.robot_ID);
             }
             else
             {
@@ -67,15 +75,47 @@ bool anomaly_presence(patrolling_sim::anomaly_service::Request  &req, patrolling
    return true;
 }
 
-void read_noise_weightings(string weighting_filename_dir){
+void read_robot_noise_weightings(string robot_weight_filename_dir){
+    std::cout << "passed argument is: " << robot_weight_filename_dir << endl;
+    std::ifstream file(robot_weight_filename_dir);
+
+    if (!file) {
+        ROS_INFO("Cannot open filename %s", robot_weight_filename_dir.c_str());
+        ROS_BREAK();
+    }
+    else{
+        ROS_INFO("Robot weightings file opened; retrieving weights.\n");
+    }
+    std::string line;
+    std::getline(file, line);  // Ignore the first two lines
+    std::getline(file, line);  // Ignore the first two lines
+    int count = 0;
+    while (std::getline(file, line) && count < dimension) {
+        float value;
+        try {
+            value = std::stof(line);
+            robot_weight_from_file.push_back(value);
+            count++;
+        } catch (const std::exception& e) {
+            std::cout << "Invalid float value on line: " << line << std::endl;
+        }
+    }
+    file.close();
+    std::cout << "Robot weights from file are: " << "\n";
+    for(float value : robot_weight_from_file) {
+        std::cout << value << std::endl;
+    }
+}
+
+void read_world_noise_weightings(string weighting_filename_dir){
     //open file at directory
-    //pull in each successive line into the vector of floats - weighting_vector_from_file
+    //pull in each successive line into the vector of floats - world_weight_from_file
     //return nothing
     std::cout << "passed argument is: " << weighting_filename_dir << endl;
     std::ifstream file(weighting_filename_dir);
 
     if (!file) {
-        ROS_INFO("Cannot open filename %s", anomaly_param_name.c_str());
+        ROS_INFO("Cannot open filename %s", weighting_filename_dir.c_str());
         ROS_BREAK();
     }
     else{
@@ -89,7 +129,7 @@ void read_noise_weightings(string weighting_filename_dir){
         float value;
         try {
             value = std::stof(line);
-            weighting_vector_from_file.push_back(value);
+            world_weight_from_file.push_back(value);
             count++;
         } catch (const std::exception& e) {
             std::cout << "Invalid float value on line: " << line << std::endl;
@@ -97,7 +137,7 @@ void read_noise_weightings(string weighting_filename_dir){
     }
     file.close();
     std::cout << "Weights from file are: " << "\n";
-    for(float value : weighting_vector_from_file) {
+    for(float value : world_weight_from_file) {
         std::cout << value << std::endl;
     }
 }
@@ -176,8 +216,8 @@ void anomaly_node_init( int dimension ) {
                  ROS_INFO("Anomaly placed at node %d",placement_from_file);
              }
          }
-         read_noise_weightings(PS_path+anomaly_param_dir+local_weighting_filename);
-
+         read_world_noise_weightings(PS_path+anomaly_param_dir+local_weighting_filename);
+         read_robot_noise_weightings(PS_path+anomaly_param_dir+robot_weight_filename);
      if (anomaly_assignment_type == RANDOM) {
          for (int i = 0; i < number_anomalies; i++) {
              anomaly_written = false;
