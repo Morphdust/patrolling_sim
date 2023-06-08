@@ -88,7 +88,6 @@ void read_robot_noise_weightings(string robot_weight_filename_dir){
     }
     std::string line;
     std::getline(file, line);  // Ignore the first two lines
-    std::getline(file, line);  // Ignore the first two lines
     int count = 0;
     while (std::getline(file, line) && count < dimension) {
         float value;
