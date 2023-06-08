@@ -29,29 +29,36 @@ TIMEOUT=3600
 CUSTOM_STAGE=true
 SPEEDUP=3.0
 
-if [[ $# -eq 4 ]] ;
+if [[ $# -eq 5 ]] ;
 then
-  ALG=$1
-  TIMEOUT=$2
-  SPEEDUP=$3
-  MULTIPLE=$4
-elif [[ $# -lt 4 ]] && [[ $# -gt 0 ]] ;
+  ALG1=$1
+  ALG2=$2
+  TIMEOUT=$3
+  SPEEDUP=$4
+  MULTIPLE=$5
+elif [[ $# -lt 5 ]] && [[ $# -gt 0 ]] ;
 then
     echo "Not enough arguments passed, running default for remainder"
 else
     echo "No arguments passed, running default"
 fi
+ALGS=($ALG1 $ALG2)
 
 source /opt/ros/noetic/setup.bash
 source ~/catkin_ws/devel/setup.bash
 
 Xvfb :1 -screen 0 1024x768x16 &
 export DISPLAY=:1
-for (( c=1; c<=MULTIPLE; c++ ))
-do 
-   #export DISPLAY=:1
-   echo "Beginning experiment $c "
-   date
-   ~/catkin_ws/src/patrolling_sim/start_experiment_screen.py $MAP $NROBOTS $INITPOS $ALG $LOC $NAV $GWAIT $COMMDELAY $TERM $TIMEOUT $CUSTOM_STAGE $SPEEDUP
-   echo "Finished experiment $c"
+for i in "${ALGS[@]}"
+do
+  ALG=$i
+  echo "Doing algorithm $ALG"
+  for (( c=1; c<=MULTIPLE; c++ ))
+  do
+     #export DISPLAY=:1
+     echo "Beginning experiment $c "
+     date
+     ~/catkin_ws/src/patrolling_sim/start_experiment_screen.py $MAP $NROBOTS $INITPOS $ALG $LOC $NAV $GWAIT $COMMDELAY $TERM $TIMEOUT $CUSTOM_STAGE $SPEEDUP
+     echo "Finished experiment $c"
+  done
 done
