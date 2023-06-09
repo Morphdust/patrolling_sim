@@ -33,7 +33,12 @@ Alg_names = [
         [ 'DTAP', 'DTASSIPart' ]
      ]
 
-Map_names = ['cumberland','example','grid','1r5','broughton','DIAG_labs','DIAG_floor1']   
+Map_names = ['cumberland','example','grid','1r5','broughton','DIAG_labs','DIAG_floor1']
+
+map_dimensions = [40, 29, 25, 12, 163, 27, 60]
+
+graph_weight_file = "params/anomaly/graph_weightings.txt"
+agent_weight_file = "params/anomaly/agent_weightings.txt"
 
 NRobots_list = ['1','2','4','6','8','10','12']
 
@@ -100,7 +105,7 @@ def getSimulationRunning():
     return t
 
 
-def save_exp_params_file(params_dict, anomaly_loc):
+def save_exp_params_file(params_dict, anomaly_loc, graph_weights, agent_weights):
     now = datetime.datetime.now()
     updated_time = now + timedelta(seconds=5)
     time_string = updated_time.strftime("%Y%m%d_%H%M%S")
@@ -128,6 +133,8 @@ def save_exp_params_file(params_dict, anomaly_loc):
         for key, value in params_dict.items():
             file.write(f"{key}: {value}\n")
         file.write(f"Anomaly loc : {anomaly_loc}\n")
+        file.write(f"Graph weights : {graph_weights}\n")
+        file.write(f"Agent weights : {agent_weights}\n")
     os.chdir(origin_dir)
 
 
@@ -163,6 +170,31 @@ def find_anomaly_location():
     return anomaly_loc
 
 
+def get_anomaly_params(map_name, num_robots):
+    graph_weight_list = []
+    agent_weight_list = []
+    map_size = 0
+    for map_size, string in enumerate(Map_names):
+        if string == map_name:
+            return map_size
+
+    if map_size == 0:
+        print("ERROR, map size incorrectly retrieved")
+        return
+
+    with open(graph_weight_file, 'r') as file:
+        for i, line in enumerate(file):
+            graph_weight_list.append(line)
+            if i+1 == map_size:
+                break
+    with open(agent_weight_file, 'r') as file:
+        for i, line in enumerate(file):
+            agent_weight_list.append(line)
+            if i+1 == num_robots:
+                break
+    return graph_weight_list, agent_weight_list
+
+
 # Run the experiment with the given arguments
 # Terminates if simulation is stopped (/simulation_running param is false)
 # or if timeout is reached (if this is >0)
@@ -171,7 +203,8 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
 
     param_dict = gen_param_dict(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT, COMMDELAY, TERM, TIMEOUT, CUSTOM_STAGE, SPEEDUP)
     anomaly_loc = find_anomaly_location()
-    save_exp_params_file(param_dict, anomaly_loc)
+    graph_weights, agent_weights = get_anomaly_params(param_dict["MAP"], NROBOTS)
+    save_exp_params_file(param_dict, anomaly_loc, graph_weights, agent_weights)
 
     ALG = findAlgName(ALG_SHORT)
     print("Run the experiment")
