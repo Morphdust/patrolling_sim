@@ -60,5 +60,6 @@ do
      date
      ~/catkin_ws/src/patrolling_sim/start_experiment_screen.py $MAP $NROBOTS $INITPOS $ALG $LOC $NAV $GWAIT $COMMDELAY $TERM $TIMEOUT $CUSTOM_STAGE $SPEEDUP
      echo "Finished experiment $c"
+     rosclean purge -y
   done
 done
