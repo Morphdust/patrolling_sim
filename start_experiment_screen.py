@@ -181,14 +181,19 @@ def get_anomaly_params(map_name, num_robots):
     if map_size == 0:
         print("ERROR, map size incorrectly retrieved")
         return
-
+    # Open graph weighting file, skipping first two lines
     with open(graph_weight_file, 'r') as file:
         for i, line in enumerate(file):
+            if i < 2:
+                continue
             graph_weight_list.append(line)
             if i+1 == map_size:
                 break
+    # Open agent weighting file, skipping first line
     with open(agent_weight_file, 'r') as file:
         for i, line in enumerate(file):
+            if i < 1:
+                continue
             agent_weight_list.append(line)
             if i+1 == num_robots:
                 break
@@ -273,7 +278,6 @@ def run_experiment(MAP, NROBOTS, INITPOS, ALG_SHORT, LOC_MODE, NAV_MODULE, GWAIT
         os.system('xterm -e  "'+cmd_stage+'" &')
     else:
         print("I'm about to start monitor")
-        os.system('source ~/catkin_ws/devel/setup.bash')
         print('screen -S monitor_window -L -Logfile ~/catkin_ws/logs/monitor_log -d -m '+cmd_monitor+' ')
         os.system('screen -S monitor_window -L -Logfile ~/catkin_ws/logs/monitor_log -d -m  '+cmd_monitor+' ')
         #os.system('screen -S monitor_window -L -Logfile ~/catkin_ws/monitor_log -d -m  '+cmd_monitor+' ')
